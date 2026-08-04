@@ -10,6 +10,7 @@ type ProjectCardProps = {
   buttonLabel: string;
   imageUrl: string;
   imageAlt: string;
+  onOpen?: () => void;
 };
 
 export function ProjectCard({
@@ -22,6 +23,7 @@ export function ProjectCard({
   buttonLabel,
   imageUrl,
   imageAlt,
+  onOpen,
 }: ProjectCardProps) {
   const darkBadge = badgeColor === "#FFCC00";
 
@@ -51,7 +53,11 @@ export function ProjectCard({
             <AppIcon name="fileText" size={15} />
             {materials} materiales
           </span>
-          <button className="min-h-11 shrink-0 rounded-[4px] border border-[#0072BC] px-4 text-[12px] font-bold text-[#0072BC]">
+          <button
+            type="button"
+            onClick={onOpen}
+            className="min-h-11 shrink-0 rounded-[4px] border border-[#0072BC] px-4 text-[12px] font-bold text-[#0072BC] transition-colors hover:bg-[#EAF4FB] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0072BC]"
+          >
             {buttonLabel}
           </button>
         </div>
