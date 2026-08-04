@@ -1,46 +1,50 @@
-import { LayoutGrid, BookUser, Map } from "lucide-react";
 import { useState } from "react";
+import type { AppIconName } from "./AppIcon";
+import { AppIcon } from "./AppIcon";
 
-const tabs = [
-  { id: "hub", label: "HUB", icon: LayoutGrid },
-  { id: "directorio", label: "Directorio", icon: BookUser },
-  { id: "mapa", label: "Mapa", icon: Map },
+const tabs: Array<{ id: string; label: string; icon: AppIconName }> = [
+  { id: "hub", label: "HUB", icon: "home" },
+  { id: "directorio", label: "Directorio", icon: "usersGroup" },
+  { id: "mapa", label: "Mapa", icon: "mapPin" },
 ];
 
-export function MainTabs() {
-  const [active, setActive] = useState("hub");
+type MainTabsProps = {
+  active?: string;
+  onChange?: (tab: string) => void;
+};
+
+export function MainTabs({ active: activeProp, onChange }: MainTabsProps) {
+  const [internalActive, setInternalActive] = useState("directorio");
+  const active = activeProp ?? internalActive;
+
+  function handleChange(tab: string) {
+    setInternalActive(tab);
+    onChange?.(tab);
+  }
 
   return (
-    <div
-      className="w-full flex items-center px-6 shrink-0"
-      style={{ backgroundColor: "#FFFFFF", borderBottom: "1px solid #E2E7EA", height: "50px" }}
-    >
-      <div className="flex items-center gap-1">
-        {tabs.map((tab) => {
-          const Icon = tab.icon;
-          const isActive = active === tab.id;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => setActive(tab.id)}
-              className="flex items-center gap-1.5 px-4 h-full relative cursor-pointer transition-colors"
-              style={{
-                height: "50px",
-                color: isActive ? "#153244" : "#5F6B76",
-                fontWeight: isActive ? 700 : 400,
-                fontSize: "13px",
-                fontFamily: "'Archivo', sans-serif",
-                background: "transparent",
-                border: "none",
-                borderBottom: isActive ? "3px solid #FFCC00" : "3px solid transparent",
-              }}
-            >
-              <Icon size={14} style={{ color: isActive ? "#153244" : "#8A9BA8" }} />
-              {tab.label}
-            </button>
-          );
-        })}
+    <nav className="h-[52px] w-screen max-w-full overflow-hidden border-b border-[#D8E0E6] bg-white">
+      <div className="mx-auto flex h-full w-full max-w-[1672px] items-center px-0 sm:px-4">
+        <div className="grid h-full w-full grid-cols-3 sm:max-w-[720px]">
+          {tabs.map((tab) => {
+            const isActive = active === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => handleChange(tab.id)}
+                className={[
+                  "relative flex h-full min-w-0 flex-col items-center justify-center gap-0.5 overflow-hidden px-1 text-[12px] font-bold leading-tight sm:flex-row sm:gap-2 sm:text-[15px]",
+                  isActive ? "text-[#153244]" : "text-[#5F6B76]",
+                ].join(" ")}
+              >
+                <AppIcon name={tab.icon} className="shrink-0" />
+                <span className="min-w-0 truncate">{tab.label}</span>
+                {isActive && <span className="absolute bottom-0 left-0 h-[4px] w-full rounded-t bg-[#FFCC00]" />}
+              </button>
+            );
+          })}
+        </div>
       </div>
-    </div>
+    </nav>
   );
 }
