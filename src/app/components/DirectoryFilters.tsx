@@ -45,10 +45,9 @@ export function DirectoryFilters({
       </FilterBlock>
 
       <FilterBlock title="Tipo de enlace">
-        <StyledFilterSelect value={linkTypeId} options={options.linkTypes} allLabel="Todos" onChange={onLinkTypeChange} disabled={disabled} />
-        <div className="mt-3 space-y-2">
+        <div className="space-y-2">
           {options.linkTypes.map((option) => (
-            <button key={option.value} type="button" aria-pressed={linkTypeId === option.value} onClick={() => onLinkTypeChange(linkTypeId === option.value ? "" : option.value)} className="flex min-h-8 w-full items-center gap-2 text-left">
+            <button key={option.value} type="button" disabled={disabled} aria-pressed={linkTypeId === option.value} onClick={() => onLinkTypeChange(linkTypeId === option.value ? "" : option.value)} className="flex min-h-8 w-full items-center gap-2 text-left disabled:cursor-not-allowed disabled:opacity-50">
               <SelectionBox selected={linkTypeId === option.value} />
               <span className="rounded-[4px] px-3 py-[2px] text-[11px] font-extrabold text-[#153244]" style={{ backgroundColor: option.color }}>{option.label}</span>
               <span className="ml-auto text-[11px] font-semibold text-[#5F6B76]">{option.count}</span>
