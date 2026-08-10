@@ -1,20 +1,29 @@
-import { useState } from "react";
 import type { AppIconName } from "./AppIcon";
 import { AppIcon } from "./AppIcon";
 import { FilterChip } from "./FilterChip";
 
-const filters: Array<{ id: string; label: string; icon: AppIconName }> = [
-  { id: "todas", label: "Todas", icon: "grid" },
-  { id: "programas", label: "Programas", icon: "briefcase" },
-  { id: "encuentros", label: "Encuentros", icon: "calendar" },
-  { id: "recursos", label: "Recursos", icon: "fileText" },
-  { id: "novedades", label: "Novedades", icon: "bell" },
-];
+type SearchPanelProps = {
+  embedded?: boolean;
+  query: string;
+  activeCategory: string;
+  categories: string[];
+  onQueryChange: (value: string) => void;
+  onCategoryChange: (value: string) => void;
+};
 
-export function SearchPanel({ embedded = false }: { embedded?: boolean }) {
-  const [activeFilter, setActiveFilter] = useState("todas");
-  const [query, setQuery] = useState("");
+export function SearchPanel({
+  embedded = false,
+  query,
+  activeCategory,
+  categories,
+  onQueryChange,
+  onCategoryChange,
+}: SearchPanelProps) {
   const Wrapper = embedded ? "div" : "section";
+  const filters: Array<{ id: string; label: string; icon: AppIconName }> = [
+    { id: "", label: "Todas", icon: "grid" },
+    ...categories.map((category) => ({ id: category, label: category, icon: getCategoryIcon(category) })),
+  ];
 
   return (
     <Wrapper className={embedded ? "" : "rounded-[14px] border border-[#E3E8EC] bg-white p-4 shadow-[0_2px_10px_rgba(21,50,68,0.06)]"}>
@@ -24,7 +33,7 @@ export function SearchPanel({ embedded = false }: { embedded?: boolean }) {
           type="text"
           placeholder="Buscar recursos, iniciativas o materiales..."
           value={query}
-          onChange={(event) => setQuery(event.target.value)}
+          onChange={(event) => onQueryChange(event.target.value)}
           className="min-w-0 flex-1 bg-transparent text-[14px] font-medium text-[#153244] outline-none placeholder:text-[#6B7782]"
         />
       </div>
@@ -34,11 +43,19 @@ export function SearchPanel({ embedded = false }: { embedded?: boolean }) {
             key={filter.id}
             label={filter.label}
             icon={filter.icon}
-            active={activeFilter === filter.id}
-            onClick={() => setActiveFilter(filter.id)}
+            active={activeCategory === filter.id}
+            onClick={() => onCategoryChange(filter.id)}
           />
         ))}
       </div>
     </Wrapper>
   );
+}
+
+function getCategoryIcon(category: string): AppIconName {
+  const normalized = category.toLocaleLowerCase("es-AR");
+  if (normalized.includes("encuentro")) return "calendar";
+  if (normalized.includes("recurso")) return "fileText";
+  if (normalized.includes("novedad")) return "bell";
+  return "briefcase";
 }

@@ -1,6 +1,7 @@
 import { AppIcon } from "./AppIcon";
+import type { HubStats } from "../types/hub";
 
-export function HeroCard() {
+export function HeroCard({ stats, loading = false }: { stats: HubStats | null; loading?: boolean }) {
   return (
     <section className="relative flex min-h-[300px] flex-col overflow-hidden rounded-[14px] bg-[#062A43] px-6 py-8 text-white shadow-[0_2px_10px_rgba(21,50,68,0.08)] sm:px-10 sm:py-10 md:min-h-[350px] xl:min-h-[380px] xl:px-14 xl:py-14">
       <HeroArt />
@@ -12,11 +13,11 @@ export function HeroCard() {
         </h2>
       </div>
       <div className="relative z-10 mt-auto flex max-w-[760px] flex-wrap items-center gap-x-9 gap-y-5 pt-12 xl:flex-nowrap xl:gap-x-10">
-        <Stat icon="usersGroup" value="50" label="Integrantes en la red" />
+        <Stat icon="usersGroup" value={loading || !stats ? "—" : String(stats.members)} label="Integrantes en la red" />
         <Divider />
-        <Stat icon="fileText" value="120+" label="Recursos disponibles" />
+        <Stat icon="fileText" value={loading || !stats ? "—" : String(stats.resources)} label="Recursos disponibles" />
         <Divider />
-        <Stat icon="target" value="8" label="Iniciativas y secciones" />
+        <Stat icon="target" value={loading || !stats ? "—" : String(stats.sections)} label="Iniciativas y secciones" />
       </div>
     </section>
   );

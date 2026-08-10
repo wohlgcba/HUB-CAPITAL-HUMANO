@@ -1,4 +1,6 @@
 import { FormEvent, useState } from "react";
+import { useAuth } from "../context/AuthContext";
+import { getErrorMessage } from "../services/serviceError";
 import { AppIcon } from "./AppIcon";
 import { PasswordInput } from "./PasswordInput";
 
@@ -9,18 +11,21 @@ type LoginErrors = {
 };
 
 export function LoginForm() {
+  const { signIn, sendPasswordReset } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [remember, setRemember] = useState(false);
+  const [remember, setRemember] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState<LoginErrors>({});
   const [message, setMessage] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     const nextErrors: LoginErrors = {};
     if (!email.trim()) nextErrors.email = "Ingresá tu correo institucional.";
+    else if (!/^\S+@\S+\.\S+$/.test(email.trim())) nextErrors.email = "Ingresá un correo válido.";
     if (!password.trim()) nextErrors.password = "Ingresá tu contraseña.";
 
     setErrors(nextErrors);
@@ -28,21 +33,39 @@ export function LoginForm() {
 
     if (Object.keys(nextErrors).length > 0) return;
 
-    if (email.trim() !== "Usuario" || password !== "Contraseña") {
-      setErrors({ general: "Credenciales inválidas para la presentación." });
+    setIsLoading(true);
+    try {
+      await signIn(email, password, remember);
+    } catch (error) {
+      setErrors({ general: getErrorMessage(error, "No se pudo iniciar sesión.") });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handlePasswordReset = async () => {
+    setErrors({});
+    setMessage("");
+    if (!/^\S+@\S+\.\S+$/.test(email.trim())) {
+      setErrors({ email: "Ingresá tu correo para recuperar la contraseña." });
       return;
     }
 
-    setMessage("Inicio de sesión pendiente de conexión con Supabase.");
-    window.setTimeout(() => {
-      window.location.hash = "#app";
-    }, 700);
+    setIsLoading(true);
+    try {
+      await sendPasswordReset(email);
+      setMessage("Te enviamos un correo para restablecer tu contraseña.");
+    } catch (error) {
+      setErrors({ general: getErrorMessage(error, "No se pudo enviar el correo de recuperación.") });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
     <div className="w-full max-w-[456px]">
       <form
-        onSubmit={handleSubmit}
+        onSubmit={(event) => void handleSubmit(event)}
         className="rounded-[18px] border border-[#E3E8EC] bg-white px-5 py-7 shadow-[0_22px_70px_rgba(21,50,68,0.10)] sm:px-8 sm:py-9"
         noValidate
       >
@@ -99,19 +122,21 @@ export function LoginForm() {
             />
             Recordarme
           </label>
-          <a
-            href="#login"
+          <button
+            type="button"
+            onClick={() => void handlePasswordReset()}
             className="flex min-h-11 items-center text-[#005CB9] underline-offset-4 transition hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#005CB9]"
           >
             ¿Olvidaste tu contraseña?
-          </a>
+          </button>
         </div>
 
         <button
           type="submit"
+          disabled={isLoading}
           className="mt-4 flex h-14 w-full items-center justify-center rounded-[8px] bg-[#153244] text-[15px] font-extrabold text-white shadow-[0_10px_24px_rgba(21,50,68,0.18)] transition hover:bg-[#062A43] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#005CB9]"
         >
-          Iniciar sesión
+          {isLoading ? "Ingresando..." : "Iniciar sesión"}
         </button>
 
         {errors.general && (
@@ -128,7 +153,8 @@ export function LoginForm() {
 
         <button
           type="button"
-          className="flex h-14 w-full items-center justify-center rounded-[8px] border border-[#C7D1DA] bg-white text-[14px] font-extrabold text-[#153244] transition hover:border-[#153244] hover:bg-[#F5F7F8] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#005CB9]"
+          disabled
+          className="flex h-14 w-full cursor-not-allowed items-center justify-center rounded-[8px] border border-[#C7D1DA] bg-white text-[14px] font-extrabold text-[#5F6B76] opacity-65"
         >
           Ingresar con SSO del GCBA
         </button>

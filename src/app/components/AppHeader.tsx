@@ -1,10 +1,19 @@
 import { useEffect, useRef, useState } from "react";
 import logoBAUrl from "../../../logo-BA-1-800x261.svg";
+import type { UserProfile } from "../types/auth";
 import { AppIcon } from "./AppIcon";
 
-export function AppHeader() {
+type AppHeaderProps = {
+  profile: UserProfile;
+  onLogout: () => Promise<void>;
+};
+
+export function AppHeader({ profile, onLogout }: AppHeaderProps) {
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
+  const initials = getInitials(profile.fullName);
+  const roleLabel = profile.role === "admin" ? "Administrador" : "Integrante";
 
   useEffect(() => {
     const handlePointerDown = (event: PointerEvent) => {
@@ -25,9 +34,14 @@ export function AppHeader() {
     };
   }, []);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     setIsUserMenuOpen(false);
-    window.location.hash = "#login";
+    setIsLoggingOut(true);
+    try {
+      await onLogout();
+    } finally {
+      setIsLoggingOut(false);
+    }
   };
 
   return (
@@ -72,11 +86,11 @@ export function AppHeader() {
               aria-expanded={isUserMenuOpen}
             >
               <span className="flex h-10 w-10 items-center justify-center rounded-full bg-white text-[13px] font-extrabold text-[#153244] sm:h-[48px] sm:w-[48px] sm:text-[15px]">
-                ME
+                {initials}
               </span>
               <span className="hidden leading-tight xl:block">
-                <span className="block text-[16px] font-extrabold">María Eugenia</span>
-                <span className="block text-[13px] font-normal text-white/80">Coordinadora</span>
+                <span className="block text-[16px] font-extrabold">{profile.fullName}</span>
+                <span className="block text-[13px] font-normal text-white/80">{roleLabel}</span>
               </span>
               <AppIcon
                 name="chevronDown"
@@ -92,21 +106,22 @@ export function AppHeader() {
               >
                 <div className="flex items-center gap-3 border-b border-[#E3E8EC] px-4 py-3">
                   <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#DDF8F5] text-[13px] font-extrabold text-[#153244]">
-                    ME
+                    {initials}
                   </span>
                   <span className="min-w-0 leading-tight">
-                    <span className="block truncate text-[14px] font-extrabold">María Eugenia</span>
-                    <span className="block text-[12px] font-semibold text-[#5F6B76]">Coordinadora</span>
+                    <span className="block truncate text-[14px] font-extrabold">{profile.fullName}</span>
+                    <span className="block text-[12px] font-semibold text-[#5F6B76]">{roleLabel}</span>
                   </span>
                 </div>
                 <button
                   type="button"
                   role="menuitem"
-                  onClick={handleLogout}
+                  onClick={() => void handleLogout()}
+                  disabled={isLoggingOut}
                   className="flex min-h-11 w-full items-center gap-3 px-4 py-3 text-left text-[14px] font-extrabold transition hover:bg-[#F5F7F8] focus-visible:bg-[#F5F7F8] focus-visible:outline-none"
                 >
                   <AppIcon name="logout" />
-                  Cerrar sesión
+                  {isLoggingOut ? "Cerrando..." : "Cerrar sesión"}
                 </button>
               </div>
             )}
@@ -115,6 +130,15 @@ export function AppHeader() {
       </div>
     </header>
   );
+}
+
+function getInitials(fullName: string) {
+  const words = fullName.trim().split(/\s+/).filter(Boolean);
+  return words
+    .slice(0, 2)
+    .map((word) => word[0])
+    .join("")
+    .toUpperCase();
 }
 
 function BuenosAiresLogo() {

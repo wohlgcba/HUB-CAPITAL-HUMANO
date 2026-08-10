@@ -22,7 +22,7 @@ const cabaBounds: LatLngBoundsExpression = [
 ];
 
 export function MapPage() {
-  const peopleCount = 24;
+  const peopleCount = buildingLocations.reduce((total, building) => total + building.peopleCount, 0);
   const buildingCount = buildingLocations.length;
   const linkTypeCount = 0;
 
