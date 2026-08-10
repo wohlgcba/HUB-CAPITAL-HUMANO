@@ -28,16 +28,16 @@ if (validateOnly) {
 }
 
 const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const adminApiKey = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
 const adminInitialPassword = process.env.ADMIN_INITIAL_PASSWORD;
 
-if (!supabaseUrl || !serviceRoleKey || !adminInitialPassword) {
+if (!supabaseUrl || !adminApiKey || !adminInitialPassword) {
   throw new Error(
-    "Faltan SUPABASE_URL/VITE_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY o ADMIN_INITIAL_PASSWORD en el entorno administrativo.",
+    "Faltan SUPABASE_URL/VITE_SUPABASE_URL, SUPABASE_SECRET_KEY/SUPABASE_SERVICE_ROLE_KEY o ADMIN_INITIAL_PASSWORD en el entorno administrativo.",
   );
 }
 
-const supabase = createClient(supabaseUrl, serviceRoleKey, {
+const supabase = createClient(supabaseUrl, adminApiKey, {
   auth: { autoRefreshToken: false, persistSession: false },
 });
 
