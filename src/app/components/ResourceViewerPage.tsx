@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router";
 import { useAuth } from "../context/AuthContext";
 import { formatDate, formatFileKind, formatFileSize } from "../lib/formatters";
@@ -19,6 +19,8 @@ export function ResourceViewerPage() {
   const [notFound, setNotFound] = useState(false);
   const [error, setError] = useState("");
   const [actionError, setActionError] = useState("");
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const viewerRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -57,6 +59,15 @@ export function ResourceViewerPage() {
     };
   }, [isAdmin, resourceId]);
 
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(document.fullscreenElement === viewerRef.current);
+    };
+
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    return () => document.removeEventListener("fullscreenchange", handleFullscreenChange);
+  }, []);
+
   const selectedFile = useMemo(
     () => resource?.files.find((file) => file.id === selectedFileId) ?? resource?.files[0] ?? null,
     [resource, selectedFileId],
@@ -73,6 +84,25 @@ export function ResourceViewerPage() {
       if (resource) void logAuditEvent("resource_download", "resource", resource.id);
     } catch (downloadError) {
       setActionError(getErrorMessage(downloadError, "No se pudo descargar el archivo."));
+    }
+  };
+
+  const handleToggleFullscreen = async () => {
+    setActionError("");
+
+    try {
+      if (document.fullscreenElement === viewerRef.current) {
+        await document.exitFullscreen();
+        return;
+      }
+
+      if (!viewerRef.current?.requestFullscreen) {
+        throw new Error("Este navegador no permite usar el modo de pantalla completa.");
+      }
+
+      await viewerRef.current.requestFullscreen();
+    } catch (fullscreenError) {
+      setActionError(getErrorMessage(fullscreenError, "No se pudo activar la pantalla completa."));
     }
   };
 
@@ -127,7 +157,10 @@ export function ResourceViewerPage() {
           )}
         </aside>
 
-        <section className="min-w-0 rounded-[12px] border border-[#E3E8EC] bg-white p-4 shadow-[0_2px_10px_rgba(21,50,68,0.05)] sm:p-5">
+        <section
+          ref={viewerRef}
+          className={`min-w-0 bg-white ${isFullscreen ? "flex h-[100dvh] flex-col overflow-hidden p-3 sm:p-5" : "rounded-[12px] border border-[#E3E8EC] p-4 shadow-[0_2px_10px_rgba(21,50,68,0.05)] sm:p-5"}`}
+        >
           {selectedFile ? (
             <>
               <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -135,13 +168,27 @@ export function ResourceViewerPage() {
                   <h2 className="truncate text-[17px] font-extrabold text-[#153244]">{selectedFile.fileName}</h2>
                   <p className="mt-1 text-[12px] font-semibold text-[#5F6B76]">{formatFileKind(selectedFile.fileKind)} · {formatFileSize(selectedFile.fileSizeBytes)}</p>
                 </div>
-                {selectedFile.allowDownload ? (
-                  <button type="button" onClick={() => void handleDownload(selectedFile)} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-[6px] border border-[#0072BC] px-4 text-[13px] font-extrabold text-[#0072BC]">
-                    <AppIcon name="download" size={18} /> Descargar
+                <div className="flex shrink-0 items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void handleToggleFullscreen()}
+                    aria-label={isFullscreen ? "Salir de pantalla completa" : "Ver en pantalla completa"}
+                    aria-pressed={isFullscreen}
+                    title={isFullscreen ? "Salir de pantalla completa" : "Ver en pantalla completa"}
+                    className="inline-flex size-11 items-center justify-center rounded-[6px] border border-[#0072BC] text-[#0072BC] transition-colors hover:bg-[#EAF6FD] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#153244]"
+                  >
+                    <AppIcon name={isFullscreen ? "minimize" : "maximize"} size={20} />
                   </button>
-                ) : null}
+                  {selectedFile.allowDownload ? (
+                    <button type="button" onClick={() => void handleDownload(selectedFile)} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-[6px] border border-[#0072BC] px-4 text-[13px] font-extrabold text-[#0072BC]">
+                      <AppIcon name="download" size={18} /> Descargar
+                    </button>
+                  ) : null}
+                </div>
               </div>
-              <FilePreview file={selectedFile} />
+              <div className={isFullscreen ? "min-h-0 flex-1" : ""}>
+                <FilePreview file={selectedFile} isFullscreen={isFullscreen} />
+              </div>
               {actionError ? <p role="alert" className="mt-4 rounded-[8px] bg-[#FFF4F4] px-4 py-3 text-[13px] font-bold text-[#C93B3B]">{actionError}</p> : null}
             </>
           ) : (
@@ -153,21 +200,21 @@ export function ResourceViewerPage() {
   );
 }
 
-function FilePreview({ file }: { file: ResourceFile }) {
+function FilePreview({ file, isFullscreen }: { file: ResourceFile; isFullscreen: boolean }) {
   if (!file.viewUrl) {
-    return <div className="flex min-h-[420px] items-center justify-center rounded-[8px] bg-[#F5F7F8] px-5 text-center text-[14px] font-bold text-[#5F6B76]">El archivo no está disponible en Storage.</div>;
+    return <div className={`flex items-center justify-center rounded-[8px] bg-[#F5F7F8] px-5 text-center text-[14px] font-bold text-[#5F6B76] ${isFullscreen ? "h-full min-h-0" : "min-h-[420px]"}`}>El archivo no está disponible en Storage.</div>;
   }
 
   if (file.fileKind === "pdf") {
-    return <iframe src={file.viewUrl} title={`Vista previa de ${file.fileName}`} className="h-[70dvh] min-h-[520px] w-full rounded-[8px] border border-[#E3E8EC]" />;
+    return <iframe src={file.viewUrl} title={`Vista previa de ${file.fileName}`} allowFullScreen className={`w-full rounded-[8px] border border-[#E3E8EC] ${isFullscreen ? "h-full min-h-0" : "h-[70dvh] min-h-[520px]"}`} />;
   }
 
   if (file.fileKind === "image") {
-    return <div className="flex min-h-[420px] items-center justify-center rounded-[8px] bg-[#F5F7F8] p-4"><img src={file.viewUrl} alt={file.fileName} className="max-h-[70dvh] max-w-full object-contain" /></div>;
+    return <div className={`flex items-center justify-center rounded-[8px] bg-[#F5F7F8] p-4 ${isFullscreen ? "h-full min-h-0" : "min-h-[420px]"}`}><img src={file.viewUrl} alt={file.fileName} className={`${isFullscreen ? "max-h-full" : "max-h-[70dvh]"} max-w-full object-contain`} /></div>;
   }
 
   return (
-    <div className="flex min-h-[420px] flex-col items-center justify-center rounded-[8px] border border-dashed border-[#C9D5DE] bg-[#F9FAFB] px-6 text-center">
+    <div className={`flex flex-col items-center justify-center rounded-[8px] border border-dashed border-[#C9D5DE] bg-[#F9FAFB] px-6 text-center ${isFullscreen ? "h-full min-h-0" : "min-h-[420px]"}`}>
       <AppIcon name="fileDescription" size={48} className="text-[#153244]" />
       <h3 className="mt-4 text-[18px] font-extrabold text-[#153244]">Vista previa no disponible</h3>
       <p className="mt-2 max-w-[520px] text-[13px] font-semibold leading-relaxed text-[#5F6B76]">Este formato no puede previsualizarse de forma nativa dentro de la WebApp. Podés abrir el archivo original con una aplicación compatible.</p>

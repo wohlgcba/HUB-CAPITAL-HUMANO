@@ -10,6 +10,7 @@ import type {
 } from "../types/directory";
 import { getAdminPersonAccess } from "./adminService";
 import { toServiceError } from "./serviceError";
+import { getSignedAssetUrl } from "./storageService";
 
 type PersonSummaryRow = {
   id: string;
@@ -40,6 +41,7 @@ type PersonLinkRow = {
 type ProfileSummaryRow = {
   directory_person_id: string | null;
   role: "user" | "admin";
+  avatar_path: string | null;
 };
 
 export async function getDirectoryFilterOptions(includeInactive = false): Promise<DirectoryFilterOptions> {
@@ -119,11 +121,17 @@ export async function searchDirectory(query: DirectoryQuery): Promise<DirectoryR
     getLinksByPerson(personIds),
     getProfilesByPerson(personIds),
   ]);
+  const avatarUrlsByPerson = await getAvatarUrlsByPerson(profilesByPerson);
 
   return {
     filteredTotal: count ?? 0,
     people: peopleRows.map((person) =>
-      mapSummary(person, linksByPerson.get(person.id) ?? [], profilesByPerson.get(person.id) ?? null),
+      mapSummary(
+        person,
+        linksByPerson.get(person.id) ?? [],
+        profilesByPerson.get(person.id) ?? null,
+        avatarUrlsByPerson.get(person.id) ?? null,
+      ),
     ),
   };
 }
@@ -142,8 +150,14 @@ export async function getDirectoryPersonDetail(personId: string, includeInactive
     getLinksByPerson([personId]),
     getProfilesByPerson([personId]),
   ]);
+  const avatarUrlsByPerson = await getAvatarUrlsByPerson(profilesByPerson);
   return {
-    ...mapSummary(data, linksByPerson.get(personId) ?? [], profilesByPerson.get(personId) ?? null),
+    ...mapSummary(
+      data,
+      linksByPerson.get(personId) ?? [],
+      profilesByPerson.get(personId) ?? null,
+      avatarUrlsByPerson.get(personId) ?? null,
+    ),
     phone: data.phone,
     email: data.email,
     building: data.gcba_building,
@@ -198,7 +212,7 @@ async function getProfilesByPerson(personIds: string[]) {
   if (personIds.length === 0) return result;
   const { data, error } = await supabase
     .from("profiles")
-    .select("directory_person_id,role")
+    .select("directory_person_id,role,avatar_path")
     .in("directory_person_id", personIds);
   if (error) throw toServiceError(error, "No se pudo cargar el estado de los usuarios.");
   for (const profile of data as ProfileSummaryRow[]) {
@@ -207,10 +221,21 @@ async function getProfilesByPerson(personIds: string[]) {
   return result;
 }
 
+async function getAvatarUrlsByPerson(profilesByPerson: Map<string, ProfileSummaryRow>) {
+  const avatarEntries = await Promise.all(
+    [...profilesByPerson.entries()].map(async ([personId, profile]) => [
+      personId,
+      await getSignedAssetUrl("profile-avatars", profile.avatar_path),
+    ] as const),
+  );
+  return new Map(avatarEntries);
+}
+
 function mapSummary(
   row: PersonSummaryRow,
   linkTypes: DirectoryLinkType[],
   profile: ProfileSummaryRow | null,
+  avatarUrl: string | null,
 ): DirectoryPersonSummary {
   return {
     id: row.id,
@@ -218,6 +243,7 @@ function mapSummary(
     area: row.area,
     role: row.job_role,
     linkTypes,
+    avatarUrl,
     isActive: row.is_active,
     systemRole: profile?.role ?? null,
     hasAccount: Boolean(profile),

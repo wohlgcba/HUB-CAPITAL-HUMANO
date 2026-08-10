@@ -47,7 +47,7 @@ export function PersonDetailModal({ person, onClose }: { person: DirectoryPerson
         </div>
         <div className="p-5 sm:p-6">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-            <span className="flex h-[76px] w-[76px] shrink-0 items-center justify-center rounded-full text-[24px] font-extrabold" style={{ backgroundColor: getAvatarColor(person.id) }}>{getInitials(person.name)}</span>
+            <span className="flex h-[76px] w-[76px] shrink-0 items-center justify-center overflow-hidden rounded-full text-[24px] font-extrabold" style={{ backgroundColor: getAvatarColor(person.id) }}>{person.avatarUrl ? <img src={person.avatarUrl} alt={`Foto de perfil de ${person.name}`} className="h-full w-full object-cover" /> : getInitials(person.name)}</span>
             <div className="min-w-0">
               <h3 className="text-[24px] font-extrabold leading-tight text-[#061947]">{person.name}</h3>
               <p className="mt-2 text-[12px] font-extrabold uppercase leading-tight">{person.area}</p>

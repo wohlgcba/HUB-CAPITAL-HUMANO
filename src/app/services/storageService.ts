@@ -5,8 +5,9 @@ import { toServiceError } from "./serviceError";
 const signedUrlLifetimeSeconds = 60 * 60;
 const sectionBannerLimit = 10 * 1024 * 1024;
 const resourceFileLimit = 50 * 1024 * 1024;
+const profileAvatarLimit = 5 * 1024 * 1024;
 
-type HubBucket = "section-banners" | "resource-covers" | "resource-files";
+type HubBucket = "section-banners" | "resource-covers" | "resource-files" | "profile-avatars";
 type StoredObject = { bucket: HubBucket | string; path: string };
 
 const resourceKindsByExtension: Record<string, ResourceFileKind> = {
@@ -56,6 +57,18 @@ export function validateResourceFile(file: File) {
   return kind;
 }
 
+export function validateProfileAvatar(file: File) {
+  getProfileAvatarContentType(file);
+  if (file.size > profileAvatarLimit) throw new Error("La foto no puede superar los 5 MB.");
+}
+
+export function getProfileAvatarContentType(file: File) {
+  const extension = file.name.split(".").pop()?.toLowerCase() ?? "";
+  if (file.type === "image/png" || (!file.type && extension === "png")) return "image/png";
+  if (["image/jpeg", "image/jpg"].includes(file.type) || (!file.type && ["jpg", "jpeg"].includes(extension))) return "image/jpeg";
+  throw new Error("La foto debe ser JPG, JPEG o PNG.");
+}
+
 export function inferResourceFileKind(file: File): ResourceFileKind {
   const extension = file.name.split(".").pop()?.toLocaleLowerCase("es-AR") ?? "";
   return resourceKindsByExtension[extension] ?? "other";
@@ -69,6 +82,11 @@ export function createStoragePath(ownerId: string, fileName: string) {
     .replace(/-+/g, "-")
     .replace(/^-|-$/g, "") || "archivo";
   return `${ownerId}/${crypto.randomUUID()}-${normalizedName}`;
+}
+
+export function createProfileAvatarPath(authUserId: string, file: File) {
+  const extension = getProfileAvatarContentType(file) === "image/png" ? "png" : "jpg";
+  return `${authUserId}/${crypto.randomUUID()}.${extension}`;
 }
 
 export async function uploadStorageFile(bucket: HubBucket, path: string, file: File) {

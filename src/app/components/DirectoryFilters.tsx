@@ -31,9 +31,6 @@ export function DirectoryFilters({
   onStatusChange,
   onClear,
 }: DirectoryFiltersProps) {
-  const [showAllAreas, setShowAllAreas] = useState(false);
-  const visibleAreas = showAllAreas ? options.areas : options.areas.slice(0, 8);
-
   return (
     <aside className="rounded-[10px] border border-[#E3E8EC] bg-white p-4 shadow-[0_2px_10px_rgba(21,50,68,0.04)]">
       <div className="mb-5 flex items-center justify-between">
@@ -45,17 +42,6 @@ export function DirectoryFilters({
 
       <FilterBlock title="Área">
         <StyledFilterSelect value={area} options={options.areas} allLabel="Todas" onChange={onAreaChange} disabled={disabled} />
-        <div className="mt-3 space-y-2">
-          {visibleAreas.map((option) => (
-            <FilterOptionButton key={option.value} option={option} selected={area === option.value} onSelect={onAreaChange} />
-          ))}
-        </div>
-        {options.areas.length > 8 ? (
-          <button type="button" onClick={() => setShowAllAreas((current) => !current)} className="mt-3 flex min-h-11 items-center gap-1 text-[12px] font-bold text-[#005CB9]">
-            <AppIcon name="chevronDown" size={15} className={showAllAreas ? "rotate-180" : ""} />
-            {showAllAreas ? "Ver menos" : "Ver más"}
-          </button>
-        ) : null}
       </FilterBlock>
 
       <FilterBlock title="Tipo de enlace">
@@ -86,16 +72,6 @@ export function DirectoryFilters({
 
 function FilterBlock({ title, children }: { title: string; children: React.ReactNode }) {
   return <section className="mb-6 last:mb-0"><h3 className="mb-2 text-[12px] font-extrabold uppercase tracking-[0.03em] text-[#5F6B76]">{title}</h3>{children}</section>;
-}
-
-function FilterOptionButton({ option, selected, onSelect }: { option: DirectoryFilterOption; selected: boolean; onSelect: (value: string) => void }) {
-  return (
-    <button type="button" aria-pressed={selected} onClick={() => onSelect(selected ? "" : option.value)} className="flex min-h-8 w-full items-center gap-2 text-left text-[12px] font-semibold text-[#153244]">
-      <SelectionBox selected={selected} />
-      <span className="min-w-0 flex-1">{option.label}</span>
-      <span className="text-[#5F6B76]">{option.count}</span>
-    </button>
-  );
 }
 
 function SelectionBox({ selected }: { selected: boolean }) {

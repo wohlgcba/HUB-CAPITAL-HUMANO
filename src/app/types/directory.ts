@@ -11,6 +11,7 @@ export type DirectoryPersonSummary = {
   area: string;
   role: string | null;
   linkTypes: DirectoryLinkType[];
+  avatarUrl: string | null;
   isActive: boolean;
   systemRole: "user" | "admin" | null;
   hasAccount: boolean;
