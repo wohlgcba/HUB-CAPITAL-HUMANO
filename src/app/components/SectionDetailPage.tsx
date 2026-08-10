@@ -1,14 +1,19 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router";
+import { toast as notify } from "sonner";
+import { useAuth } from "../context/AuthContext";
 import { formatDate, formatFileKind, formatFileSize } from "../lib/formatters";
 import { logAuditEvent } from "../services/auditService";
-import { getResourceDownloadUrl, listSectionResources } from "../services/resourceService";
+import { deleteResource, getResourceDownloadUrl, listAdminSectionResources, listSectionResources } from "../services/resourceService";
 import { getErrorMessage } from "../services/serviceError";
-import { getSectionBySlug } from "../services/sectionService";
+import { getAdminSectionBySlug, getSectionBySlug, listAdminSections } from "../services/sectionService";
 import type { HubSection } from "../types/hub";
 import type { ResourceFileKind, SectionResource } from "../types/resources";
 import type { AppIconName } from "./AppIcon";
 import { AppIcon } from "./AppIcon";
+import { ConfirmDialog } from "./ConfirmDialog";
+import { ResourceFormDialog } from "./ResourceFormDialog";
+import { SectionFormDialog } from "./SectionFormDialog";
 
 const bannerStyles = {
   cyan: {
@@ -40,12 +45,21 @@ const formatStyles: Record<
 export function SectionDetailPage() {
   const { slug } = useParams();
   const navigate = useNavigate();
+  const auth = useAuth();
+  const isAdmin = auth.profile?.role === "admin";
   const [section, setSection] = useState<HubSection | null>(null);
   const [resources, setResources] = useState<SectionResource[]>([]);
+  const [adminSections, setAdminSections] = useState<HubSection[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [error, setError] = useState("");
   const [toast, setToast] = useState("");
+  const [sectionFormOpen, setSectionFormOpen] = useState(false);
+  const [resourceFormOpen, setResourceFormOpen] = useState(false);
+  const [editingResource, setEditingResource] = useState<SectionResource | null>(null);
+  const [deletingResource, setDeletingResource] = useState<SectionResource | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [refreshVersion, setRefreshVersion] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -62,16 +76,21 @@ export function SectionDetailPage() {
       };
     }
 
-    void getSectionBySlug(slug)
+    const sectionRequest = isAdmin ? getAdminSectionBySlug(slug) : getSectionBySlug(slug);
+    void sectionRequest
       .then(async (nextSection) => {
         if (!nextSection) {
           if (!cancelled) setNotFound(true);
           return;
         }
-        const nextResources = await listSectionResources(nextSection.id);
+        const [nextResources, nextAdminSections] = await Promise.all([
+          isAdmin ? listAdminSectionResources(nextSection.id) : listSectionResources(nextSection.id),
+          isAdmin ? listAdminSections() : Promise.resolve([]),
+        ]);
         if (cancelled) return;
         setSection(nextSection);
         setResources(nextResources);
+        setAdminSections(nextAdminSections);
         void logAuditEvent("section_view", "section", nextSection.id);
       })
       .catch((loadError: unknown) => {
@@ -84,7 +103,25 @@ export function SectionDetailPage() {
     return () => {
       cancelled = true;
     };
-  }, [slug]);
+  }, [isAdmin, refreshVersion, slug]);
+
+  const handleDeleteResource = async () => {
+    if (!deletingResource) return;
+    setIsDeleting(true);
+    try {
+      const result = await deleteResource(deletingResource);
+      void logAuditEvent("resource_deleted", "resource", deletingResource.id);
+      notify.success("Recurso eliminado", {
+        description: result.storageCleanupFailed ? "El registro se eliminó; quedó una limpieza de Storage pendiente." : "El recurso ya no está visible para los usuarios.",
+      });
+      setDeletingResource(null);
+      setRefreshVersion((version) => version + 1);
+    } catch (deleteError) {
+      notify.error("No se pudo eliminar el recurso", { description: getErrorMessage(deleteError, "Intentá nuevamente.") });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   const handleDownload = async (resource: SectionResource) => {
     const file = resource.files.find((candidate) => candidate.allowDownload);
@@ -118,7 +155,15 @@ export function SectionDetailPage() {
               <li className="text-[#153244]">{section.title}</li>
             </ol>
           </nav>
-          <BackButton onBack={() => navigate("/")} />
+          <div className="flex flex-wrap items-center gap-2">
+            {isAdmin ? (
+              <>
+                <button type="button" onClick={() => setSectionFormOpen(true)} className="inline-flex min-h-11 items-center gap-2 rounded-[6px] border border-[#0072BC] bg-white px-4 text-[13px] font-extrabold text-[#0072BC]"><AppIcon name="edit" size={17} /> Editar sección</button>
+                <button type="button" onClick={() => { setEditingResource(null); setResourceFormOpen(true); }} className="inline-flex min-h-11 items-center gap-2 rounded-[6px] bg-[#0072BC] px-4 text-[13px] font-extrabold text-white"><AppIcon name="plus" size={18} /> Añadir recurso</button>
+              </>
+            ) : null}
+            <BackButton onBack={() => navigate("/")} />
+          </div>
         </div>
 
         <SectionBanner section={section} />
@@ -135,6 +180,9 @@ export function SectionDetailPage() {
                   resource={resource}
                   onOpen={() => navigate(`/recursos/${resource.id}`)}
                   onDownload={() => void handleDownload(resource)}
+                  isAdmin={isAdmin}
+                  onEdit={() => { setEditingResource(resource); setResourceFormOpen(true); }}
+                  onDelete={() => setDeletingResource(resource)}
                 />
               ))}
             </div>
@@ -154,6 +202,38 @@ export function SectionDetailPage() {
         <div role="status" aria-live="polite" className="fixed bottom-5 left-1/2 z-50 w-[calc(100%-32px)] max-w-[520px] -translate-x-1/2 rounded-[10px] border border-[#8DE2D6] bg-[#153244] px-5 py-4 text-center text-[14px] font-bold text-white">
           {toast}
         </div>
+      ) : null}
+      {isAdmin && section ? (
+        <>
+          <SectionFormDialog
+            open={sectionFormOpen}
+            section={section}
+            onCancel={() => setSectionFormOpen(false)}
+            onSaved={(savedSection) => {
+              setSectionFormOpen(false);
+              if (savedSection.slug !== slug) navigate(`/secciones/${savedSection.slug}`, { replace: true });
+              else setRefreshVersion((version) => version + 1);
+            }}
+          />
+          <ResourceFormDialog
+            open={resourceFormOpen}
+            sections={adminSections.length > 0 ? adminSections : [section]}
+            initialSectionId={section.id}
+            resource={editingResource}
+            onCancel={() => { setResourceFormOpen(false); setEditingResource(null); }}
+            onSaved={() => { setResourceFormOpen(false); setEditingResource(null); setRefreshVersion((version) => version + 1); }}
+          />
+          <ConfirmDialog
+            open={Boolean(deletingResource)}
+            title="¿Eliminar este recurso?"
+            description="Esta acción quitará el recurso de la sección visible para los usuarios."
+            details={deletingResource ? <><strong>{deletingResource.title}</strong><span className="mt-1 block text-[#5F6B76]">Sección: {section.title} · Archivo: {deletingResource.files[0]?.fileName || "Sin archivo"}</span></> : null}
+            confirmLabel="Eliminar recurso"
+            loading={isDeleting}
+            onCancel={() => setDeletingResource(null)}
+            onConfirm={() => void handleDeleteResource()}
+          />
+        </>
       ) : null}
     </main>
   );
@@ -220,7 +300,7 @@ function SectionBanner({ section }: { section: HubSection }) {
   );
 }
 
-function SectionResourceCard({ resource, onOpen, onDownload }: { resource: SectionResource; onOpen: () => void; onDownload: () => void }) {
+function SectionResourceCard({ resource, onOpen, onDownload, isAdmin, onEdit, onDelete }: { resource: SectionResource; onOpen: () => void; onDownload: () => void; isAdmin: boolean; onEdit: () => void; onDelete: () => void }) {
   const file = resource.files[0];
   const kind = file?.fileKind ?? "other";
   const style = formatStyles[kind];
@@ -235,18 +315,16 @@ function SectionResourceCard({ resource, onOpen, onDownload }: { resource: Secti
             <span className={`rounded-[5px] px-2 py-1 text-[12px] font-extrabold leading-none ${style.labelClass}`}>{file ? formatFileKind(kind) : "SIN ARCHIVO"}</span>
             {file ? <span className="text-[12px] font-bold text-[#5F6B76]">{formatFileSize(file.fileSizeBytes)}</span> : null}
             {resource.isFeatured ? <span className="rounded-[5px] bg-[#FFCC00] px-2 py-1 text-[12px] font-extrabold">Destacado</span> : null}
+            {isAdmin ? <span className={`rounded-[5px] px-2 py-1 text-[12px] font-extrabold ${resource.isActive ? "bg-[#DDF8F5] text-[#006F73]" : "bg-[#FFF1C2] text-[#735B00]"}`}>{resource.isActive ? "Publicado" : "Borrador"}</span> : null}
           </div>
           <h3 className="mt-3 text-[20px] font-extrabold leading-tight text-[#153244]">{resource.title}</h3>
         </div>
       </div>
       <p className="mt-4 flex-1 text-[14px] font-semibold leading-[1.45] text-[#5F6B76]">{resource.description || "Sin descripción."}</p>
-      <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="mt-6 flex flex-wrap items-center gap-2">
         <button type="button" onClick={onOpen} className="inline-flex min-h-11 items-center justify-center rounded-[6px] bg-[#0072BC] px-5 text-[13px] font-extrabold text-white">Abrir recurso</button>
-        {resource.files.some((candidate) => candidate.allowDownload) ? (
-          <button type="button" onClick={onDownload} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-[6px] px-4 text-[13px] font-extrabold text-[#0072BC]">
-            <AppIcon name="download" size={18} /> Descargar
-          </button>
-        ) : null}
+        {resource.files.some((candidate) => candidate.allowDownload) ? <button type="button" onClick={onDownload} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-[6px] px-4 text-[13px] font-extrabold text-[#0072BC]"><AppIcon name="download" size={18} /> Descargar</button> : null}
+        {isAdmin ? <><button type="button" onClick={onEdit} className="ml-auto inline-flex min-h-11 items-center justify-center gap-2 rounded-[6px] border border-[#0072BC] px-4 text-[13px] font-extrabold text-[#0072BC]"><AppIcon name="edit" size={17} /> Editar</button><button type="button" onClick={onDelete} aria-label={`Eliminar ${resource.title}`} className="flex h-11 w-11 items-center justify-center rounded-[6px] border border-[#E3B0B0] text-[#B52F2F]"><AppIcon name="trash" size={18} /></button></> : null}
       </div>
     </article>
   );

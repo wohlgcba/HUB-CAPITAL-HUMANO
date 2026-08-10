@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router";
+import { useAuth } from "../context/AuthContext";
 import { formatDate, formatFileKind, formatFileSize } from "../lib/formatters";
 import { logAuditEvent } from "../services/auditService";
-import { getResourceById, getResourceDownloadUrl } from "../services/resourceService";
+import { getAdminResourceById, getResourceById, getResourceDownloadUrl } from "../services/resourceService";
 import { getErrorMessage } from "../services/serviceError";
 import type { ResourceFile, SectionResource } from "../types/resources";
 import { AppIcon } from "./AppIcon";
@@ -10,6 +11,8 @@ import { AppIcon } from "./AppIcon";
 export function ResourceViewerPage() {
   const { resourceId } = useParams();
   const navigate = useNavigate();
+  const auth = useAuth();
+  const isAdmin = auth.profile?.role === "admin";
   const [resource, setResource] = useState<SectionResource | null>(null);
   const [selectedFileId, setSelectedFileId] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -31,7 +34,7 @@ export function ResourceViewerPage() {
       };
     }
 
-    void getResourceById(resourceId)
+    void (isAdmin ? getAdminResourceById(resourceId) : getResourceById(resourceId))
       .then((nextResource) => {
         if (cancelled) return;
         if (!nextResource) {
@@ -52,7 +55,7 @@ export function ResourceViewerPage() {
     return () => {
       cancelled = true;
     };
-  }, [resourceId]);
+  }, [isAdmin, resourceId]);
 
   const selectedFile = useMemo(
     () => resource?.files.find((file) => file.id === selectedFileId) ?? resource?.files[0] ?? null,

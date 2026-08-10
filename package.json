@@ -8,8 +8,8 @@
     "dev": "vite",
     "import:directory": "node scripts/import-directory.mjs",
     "import:directory:validate": "node scripts/import-directory.mjs --validate-only",
-    "lint": "eslint src/app --max-warnings=0",
-    "typecheck": "tsc --noEmit"
+    "lint": "eslint src/app api --max-warnings=0",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.api.json"
   },
   "dependencies": {
     "@emotion/react": "11.14.0",
@@ -74,8 +74,10 @@
     "@eslint/js": "^10.0.1",
     "@tailwindcss/vite": "4.1.12",
     "@types/leaflet": "^1.9.22",
+    "@types/node": "^26.2.0",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
+    "@vercel/node": "5.9.7",
     "@vitejs/plugin-react": "4.7.0",
     "eslint": "^10.8.0",
     "globals": "^17.9.0",

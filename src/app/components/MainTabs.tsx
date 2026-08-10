@@ -2,20 +2,28 @@ import { useState } from "react";
 import type { AppIconName } from "./AppIcon";
 import { AppIcon } from "./AppIcon";
 
-const tabs: Array<{ id: string; label: string; icon: AppIconName }> = [
+const userTabs: Array<{ id: string; label: string; icon: AppIconName }> = [
   { id: "hub", label: "HUB", icon: "home" },
   { id: "directorio", label: "Directorio", icon: "usersGroup" },
   { id: "mapa", label: "Mapa", icon: "mapPin" },
 ];
 
+const adminTabs: Array<{ id: string; label: string; icon: AppIconName }> = [
+  { id: "hub", label: "HUB", icon: "home" },
+  { id: "directorio", label: "Directorio", icon: "usersGroup" },
+  { id: "metricas", label: "Métricas", icon: "chart" },
+];
+
 type MainTabsProps = {
   active?: string;
+  isAdmin?: boolean;
   onChange?: (tab: string) => void;
 };
 
-export function MainTabs({ active: activeProp, onChange }: MainTabsProps) {
+export function MainTabs({ active: activeProp, isAdmin = false, onChange }: MainTabsProps) {
   const [internalActive, setInternalActive] = useState("directorio");
   const active = activeProp ?? internalActive;
+  const tabs = isAdmin ? adminTabs : userTabs;
 
   function handleChange(tab: string) {
     setInternalActive(tab);

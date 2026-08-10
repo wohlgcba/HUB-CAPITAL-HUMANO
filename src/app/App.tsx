@@ -3,6 +3,7 @@ import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router"
 import { useAuth } from "./context/AuthContext";
 import type { UserProfile } from "./types/auth";
 import { AppHeader } from "./components/AppHeader";
+import { AdminHubPage } from "./components/AdminHubPage";
 import { AuthErrorPage } from "./components/AuthErrorPage";
 import { ChangePasswordPage } from "./components/ChangePasswordPage";
 import { HubPage } from "./components/HubPage";
@@ -11,6 +12,7 @@ import { MainTabs } from "./components/MainTabs";
 import { SessionLoadingScreen } from "./components/SessionLoadingScreen";
 
 const DirectoryPage = lazy(() => import("./components/DirectoryPage").then((module) => ({ default: module.DirectoryPage })));
+const AdminMetricsPage = lazy(() => import("./components/AdminMetricsPage").then((module) => ({ default: module.AdminMetricsPage })));
 const MapPage = lazy(() => import("./components/MapPage").then((module) => ({ default: module.MapPage })));
 const ResourceViewerPage = lazy(() => import("./components/ResourceViewerPage").then((module) => ({ default: module.ResourceViewerPage })));
 const SectionDetailPage = lazy(() => import("./components/SectionDetailPage").then((module) => ({ default: module.SectionDetailPage })));
@@ -29,22 +31,26 @@ export default function App() {
 function AuthenticatedApp({ profile, onLogout }: { profile: UserProfile; onLogout: () => Promise<void> }) {
   const location = useLocation();
   const navigate = useNavigate();
+  const isAdmin = profile.role === "admin";
   const activeTab = getActiveTab(location.pathname);
 
   const handleTabChange = (tab: string) => {
-    const routes: Record<string, string> = { hub: "/", directorio: "/directorio", mapa: "/mapa" };
+    const routes: Record<string, string> = isAdmin
+      ? { hub: "/", directorio: "/directorio", metricas: "/metricas" }
+      : { hub: "/", directorio: "/directorio", mapa: "/mapa" };
     navigate(routes[tab] ?? "/");
   };
 
   return (
     <div className="min-h-screen w-screen max-w-full overflow-x-clip bg-[#F5F7F8] font-['Archivo',sans-serif] text-[#153244]">
       <AppHeader profile={profile} onLogout={onLogout} />
-      <MainTabs active={activeTab} onChange={handleTabChange} />
+      <MainTabs active={activeTab} isAdmin={isAdmin} onChange={handleTabChange} />
       <Suspense fallback={<RouteLoading />}>
         <Routes>
-          <Route path="/" element={<HubPage />} />
+          <Route path="/" element={isAdmin ? <AdminHubPage /> : <HubPage />} />
           <Route path="/directorio" element={<DirectoryPage />} />
-          <Route path="/mapa" element={<MapPage />} />
+          <Route path="/mapa" element={isAdmin ? <Navigate to="/" replace /> : <MapPage />} />
+          <Route path="/metricas" element={isAdmin ? <AdminMetricsPage /> : <Navigate to="/" replace />} />
           <Route path="/secciones/:slug" element={<SectionDetailPage />} />
           <Route path="/recursos/:resourceId" element={<ResourceViewerPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
@@ -61,5 +67,6 @@ function RouteLoading() {
 function getActiveTab(pathname: string) {
   if (pathname.startsWith("/directorio")) return "directorio";
   if (pathname.startsWith("/mapa")) return "mapa";
+  if (pathname.startsWith("/metricas")) return "metricas";
   return "hub";
 }

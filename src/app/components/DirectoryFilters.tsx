@@ -7,10 +7,13 @@ type DirectoryFiltersProps = {
   area: string;
   linkTypeId: string;
   building: string;
+  status?: string;
+  showStatus?: boolean;
   disabled?: boolean;
   onAreaChange: (value: string) => void;
   onLinkTypeChange: (value: string) => void;
   onBuildingChange: (value: string) => void;
+  onStatusChange?: (value: string) => void;
   onClear: () => void;
 };
 
@@ -19,10 +22,13 @@ export function DirectoryFilters({
   area,
   linkTypeId,
   building,
+  status = "",
+  showStatus = false,
   disabled = false,
   onAreaChange,
   onLinkTypeChange,
   onBuildingChange,
+  onStatusChange,
   onClear,
 }: DirectoryFiltersProps) {
   const [showAllAreas, setShowAllAreas] = useState(false);
@@ -68,6 +74,12 @@ export function DirectoryFilters({
       <FilterBlock title="Edificio GCBA">
         <StyledFilterSelect value={building} options={options.buildings} allLabel="Todos" onChange={onBuildingChange} disabled={disabled} />
       </FilterBlock>
+
+      {showStatus && onStatusChange ? (
+        <FilterBlock title="Estado">
+          <StyledFilterSelect value={status} options={options.statuses} allLabel="Todos" onChange={onStatusChange} disabled={disabled} />
+        </FilterBlock>
+      ) : null}
     </aside>
   );
 }

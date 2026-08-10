@@ -9,6 +9,7 @@ export type ResourceFile = {
   fileKind: ResourceFileKind;
   mimeType: string | null;
   fileSizeBytes: number | null;
+  thumbnailPath: string | null;
   thumbnailUrl: string | null;
   sortOrder: number;
   allowDownload: boolean;
@@ -20,11 +21,13 @@ export type SectionResource = {
   sectionId: string;
   title: string;
   description: string | null;
+  coverImagePath: string | null;
   coverImageUrl: string | null;
   thumbnailStrategy: string;
   sortOrder: number;
   isFeatured: boolean;
   isActive: boolean;
+  createdAt: string;
   publishedAt: string;
   updatedAt: string;
   files: ResourceFile[];
@@ -32,4 +35,16 @@ export type SectionResource = {
 
 export type RecentResource = SectionResource & {
   sectionTitle: string | null;
+};
+
+export type ResourceInput = {
+  sectionId: string;
+  title: string;
+  description: string | null;
+  file: File | null;
+  fileKind: ResourceFileKind;
+  isFeatured: boolean;
+  allowDownload: boolean;
+  publishedAt: string;
+  isActive: boolean;
 };

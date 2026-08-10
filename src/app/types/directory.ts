@@ -11,12 +11,20 @@ export type DirectoryPersonSummary = {
   area: string;
   role: string | null;
   linkTypes: DirectoryLinkType[];
+  isActive: boolean;
+  systemRole: "user" | "admin" | null;
+  hasAccount: boolean;
 };
 
 export type DirectoryPersonDetail = DirectoryPersonSummary & {
   phone: string | null;
   email: string | null;
   building: string | null;
+  cuit?: string | null;
+  accountIsActive?: boolean;
+  mustChangePassword?: boolean;
+  firstLoginAt?: string | null;
+  lastLoginAt?: string | null;
 };
 
 export type DirectoryFilterOption = {
@@ -30,6 +38,7 @@ export type DirectoryFilterOptions = {
   areas: DirectoryFilterOption[];
   linkTypes: DirectoryFilterOption[];
   buildings: DirectoryFilterOption[];
+  statuses: DirectoryFilterOption[];
   total: number;
 };
 
@@ -38,6 +47,8 @@ export type DirectoryQuery = {
   area: string;
   linkTypeId: string;
   building: string;
+  status: string;
+  includeInactive: boolean;
   page: number;
   pageSize: number;
 };

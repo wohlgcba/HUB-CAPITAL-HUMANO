@@ -61,6 +61,16 @@ export function PersonDetailModal({ person, onClose }: { person: DirectoryPerson
             <div className="grid gap-3 sm:grid-cols-2"><InfoItem icon="phone" label="Celular" value={person.phone} /><InfoItem icon="mail" label="Mail" value={person.email} /></div>
           </DetailSection>
           <DetailSection title="Ubicación"><InfoItem icon="building" label="Edificio GCBA" value={person.building} /></DetailSection>
+          {person.cuit !== undefined ? (
+            <DetailSection title="Acceso administrativo">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <InfoItem icon="clipboard" label="CUIT" value={person.cuit ?? "Sin especificar"} />
+                <InfoItem icon="usersGroup" label="Rol del sistema" value={person.systemRole === "admin" ? "Administrador" : person.hasAccount ? "Usuario" : "Sin cuenta"} />
+                <InfoItem icon="check" label="Estado" value={person.accountIsActive === false || !person.isActive ? "Inactivo" : "Activo"} />
+                <InfoItem icon="refresh" label="Contraseña" value={person.mustChangePassword ? "Debe cambiarla al ingresar" : "Personalizada"} />
+              </div>
+            </DetailSection>
+          ) : null}
           <div className="mt-5 flex gap-3 rounded-[10px] border border-[#BFEFED] bg-[#DDF8F5] px-4 py-3 text-[13px] font-bold leading-[1.4]"><AppIcon name="clipboard" size={18} className="shrink-0" />Información de uso interno. No compartas credenciales ni datos sensibles.</div>
         </div>
         <div className="flex flex-col-reverse gap-3 border-t border-[#E3E8EC] px-5 py-4 sm:flex-row sm:justify-end sm:px-6">
@@ -76,6 +86,6 @@ function DetailSection({ title, children }: { title: string; children: React.Rea
   return <section className="mt-6"><h4 className="mb-3 text-[13px] font-extrabold uppercase tracking-[0.03em]">{title}</h4>{children}</section>;
 }
 
-function InfoItem({ icon, label, value }: { icon: "phone" | "mail" | "building"; label: string; value: string | null }) {
+function InfoItem({ icon, label, value }: { icon: "phone" | "mail" | "building" | "clipboard" | "usersGroup" | "check" | "refresh"; label: string; value: string | null }) {
   return <div className="grid grid-cols-[20px_1fr] gap-3 rounded-[9px] border border-[#E3E8EC] bg-[#FCFCFC] px-4 py-3"><AppIcon name={icon} size={18} className="text-[#005CB9]" /><div className="min-w-0"><p className="text-[11px] font-bold text-[#5F6B76]">{label}</p><p className="mt-1 break-words text-[13px] font-extrabold leading-tight">{value || "Sin especificar"}</p></div></div>;
 }
