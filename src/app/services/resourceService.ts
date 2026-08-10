@@ -4,6 +4,7 @@ import type {
   ResourceFile,
   ResourceFileKind,
   ResourceInput,
+  ResourceSearchItem,
   SectionResource,
 } from "../types/resources";
 import { toServiceError } from "./serviceError";
@@ -64,6 +65,47 @@ export async function getRecentResources(limit = 5): Promise<RecentResource[]> {
 
 export async function getAdminRecentResources(limit = 8): Promise<RecentResource[]> {
   return getRecentResourcesInternal(limit, true);
+}
+
+export async function listPublishedResourceSearchItems(): Promise<ResourceSearchItem[]> {
+  const resourcesResult = await supabase
+    .from("section_resources")
+    .select("id,section_id,title,description,published_at")
+    .eq("is_active", true)
+    .order("title", { ascending: true });
+  if (resourcesResult.error) throw toServiceError(resourcesResult.error, "No se pudieron cargar los recursos del buscador.");
+  if (resourcesResult.data.length === 0) return [];
+
+  const resourceIds = resourcesResult.data.map((resource) => resource.id);
+  const sectionIds = [...new Set(resourcesResult.data.map((resource) => resource.section_id))];
+  const [sectionsResult, filesResult] = await Promise.all([
+    supabase.from("sections").select("id,title").in("id", sectionIds).eq("is_active", true),
+    supabase.from("resource_files").select("resource_id,file_name,file_kind,sort_order").in("resource_id", resourceIds).order("sort_order", { ascending: true }),
+  ]);
+  const firstError = sectionsResult.error || filesResult.error;
+  if (firstError) throw toServiceError(firstError, "No se pudo completar la información del buscador.");
+
+  const sectionTitles = new Map(sectionsResult.data.map((section) => [section.id, section.title]));
+  const firstFileByResource = new Map<string, { file_name: string; file_kind: ResourceFileKind }>();
+  for (const file of filesResult.data as Array<{ resource_id: string; file_name: string; file_kind: ResourceFileKind }>) {
+    if (!firstFileByResource.has(file.resource_id)) firstFileByResource.set(file.resource_id, file);
+  }
+
+  return resourcesResult.data.flatMap((resource) => {
+    const sectionTitle = sectionTitles.get(resource.section_id);
+    if (!sectionTitle) return [];
+    const file = firstFileByResource.get(resource.id) ?? null;
+    return [{
+      id: resource.id,
+      title: resource.title,
+      description: resource.description,
+      sectionId: resource.section_id,
+      sectionTitle,
+      fileKind: file?.file_kind ?? null,
+      fileName: file?.file_name ?? null,
+      publishedAt: resource.published_at,
+    }];
+  });
 }
 
 export async function getResourceById(resourceId: string): Promise<SectionResource | null> {

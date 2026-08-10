@@ -6,7 +6,7 @@ import { getAdminDashboardStats } from "../services/adminService";
 import { logAuditEvent } from "../services/auditService";
 import { deleteResource, getAdminRecentResources } from "../services/resourceService";
 import { getErrorMessage } from "../services/serviceError";
-import { deleteSection, listAdminSections } from "../services/sectionService";
+import { listAdminSections } from "../services/sectionService";
 import type { AdminDashboardStats } from "../types/admin";
 import type { HubSection } from "../types/hub";
 import type { RecentResource, SectionResource } from "../types/resources";
@@ -15,11 +15,6 @@ import { AppIcon, type AppIconName } from "./AppIcon";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { ResourceFormDialog } from "./ResourceFormDialog";
 import { SectionFormDialog } from "./SectionFormDialog";
-
-type DeleteTarget =
-  | { kind: "section"; section: HubSection }
-  | { kind: "resource"; resource: RecentResource }
-  | null;
 
 export function AdminHubPage() {
   const navigate = useNavigate();
@@ -32,7 +27,7 @@ export function AdminHubPage() {
   const [resourceFormOpen, setResourceFormOpen] = useState(false);
   const [resourceSectionId, setResourceSectionId] = useState("");
   const [editingResource, setEditingResource] = useState<SectionResource | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<DeleteTarget>(null);
+  const [deleteTarget, setDeleteTarget] = useState<RecentResource | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
   const loadDashboard = useCallback(async (showSkeleton = false) => {
@@ -68,19 +63,11 @@ export function AdminHubPage() {
     if (!deleteTarget) return;
     setIsDeleting(true);
     try {
-      if (deleteTarget.kind === "section") {
-        const result = await deleteSection(deleteTarget.section);
-        void logAuditEvent("section_deleted", "section", deleteTarget.section.id);
-        toast.success("Sección eliminada", {
-          description: result.storageCleanupFailed ? "La sección se eliminó; quedó una limpieza de Storage pendiente." : "La sección y sus relaciones fueron eliminadas.",
-        });
-      } else {
-        const result = await deleteResource(deleteTarget.resource);
-        void logAuditEvent("resource_deleted", "resource", deleteTarget.resource.id);
-        toast.success("Recurso eliminado", {
-          description: result.storageCleanupFailed ? "El registro se eliminó; quedó una limpieza de Storage pendiente." : "El recurso ya no está visible para los usuarios.",
-        });
-      }
+      const result = await deleteResource(deleteTarget);
+      void logAuditEvent("resource_deleted", "resource", deleteTarget.id);
+      toast.success("Recurso eliminado", {
+        description: result.storageCleanupFailed ? "El registro se eliminó; quedó una limpieza de Storage pendiente." : "El recurso ya no está visible para los usuarios.",
+      });
       setDeleteTarget(null);
       await loadDashboard();
     } catch (deleteError) {
@@ -128,9 +115,7 @@ export function AdminHubPage() {
               <AdminSectionCard
                 key={section.id}
                 section={section}
-                onView={() => navigate(`/secciones/${section.slug}`)}
-                onAddContent={() => openResourceForm(section.id)}
-                onDelete={() => setDeleteTarget({ kind: "section", section })}
+                onOpen={() => navigate(`/secciones/${section.slug}`)}
               />
             ))}
           </div>
@@ -156,7 +141,7 @@ export function AdminHubPage() {
                     <td className="px-4 py-3">{resource.files[0] ? formatFileKind(resource.files[0].fileKind) : "Sin archivo"}</td>
                     <td className="px-4 py-3"><StatusPill active={resource.isActive} /></td>
                     <td className="px-4 py-3 text-[#5F6B76]">{formatDate(resource.updatedAt)}</td>
-                    <td className="px-5 py-3"><div className="flex justify-end gap-2"><button type="button" onClick={() => openResourceForm(resource.sectionId, resource)} className="inline-flex min-h-10 items-center gap-1.5 rounded-[6px] border border-[#0072BC] px-3 text-[12px] font-extrabold text-[#0072BC]"><AppIcon name="edit" size={16} />Editar contenido</button><button type="button" onClick={() => setDeleteTarget({ kind: "resource", resource })} aria-label={`Eliminar ${resource.title}`} className="flex h-10 w-10 items-center justify-center rounded-[6px] border border-[#E3B0B0] text-[#B52F2F]"><AppIcon name="trash" size={17} /></button></div></td>
+                    <td className="px-5 py-3"><div className="flex justify-end gap-2"><button type="button" onClick={() => openResourceForm(resource.sectionId, resource)} className="inline-flex min-h-10 items-center gap-1.5 rounded-[6px] border border-[#0072BC] px-3 text-[12px] font-extrabold text-[#0072BC]"><AppIcon name="edit" size={16} />Editar contenido</button><button type="button" onClick={() => setDeleteTarget(resource)} aria-label={`Eliminar ${resource.title}`} className="flex h-10 w-10 items-center justify-center rounded-[6px] border border-[#E3B0B0] text-[#B52F2F]"><AppIcon name="trash" size={17} /></button></div></td>
                   </tr>
                 ))}
               </tbody>
@@ -169,12 +154,10 @@ export function AdminHubPage() {
       <ResourceFormDialog open={resourceFormOpen} sections={sections} initialSectionId={resourceSectionId} resource={editingResource} onCancel={() => { setResourceFormOpen(false); setEditingResource(null); }} onSaved={() => { setResourceFormOpen(false); setEditingResource(null); void loadDashboard(); }} />
       <ConfirmDialog
         open={Boolean(deleteTarget)}
-        title={deleteTarget?.kind === "section" ? "¿Eliminar esta sección?" : "¿Eliminar este recurso?"}
-        description={deleteTarget?.kind === "section" ? "Esta acción eliminará la sección y puede afectar a los recursos asociados." : "Esta acción quitará el recurso de la sección visible para los usuarios."}
-        details={deleteTarget?.kind === "section" ? <><strong>{deleteTarget.section.title}</strong><span className="ml-2 text-[#5F6B76]">· {deleteTarget.section.resourceCount} recursos afectados</span></> : deleteTarget ? <><strong>{deleteTarget.resource.title}</strong><span className="mt-1 block text-[#5F6B76]">Sección: {deleteTarget.resource.sectionTitle || "Sin especificar"} · Archivo: {deleteTarget.resource.files[0]?.fileName || "Sin archivo"}</span></> : null}
-        confirmLabel={deleteTarget?.kind === "section" ? "Eliminar sección" : "Eliminar recurso"}
-        requireAcknowledgement={deleteTarget?.kind === "section" && deleteTarget.section.resourceCount > 0}
-        acknowledgementLabel="Confirmo que deseo eliminar también los recursos asociados."
+        title="¿Eliminar este recurso?"
+        description="Esta acción quitará el recurso de la sección visible para los usuarios."
+        details={deleteTarget ? <><strong>{deleteTarget.title}</strong><span className="mt-1 block text-[#5F6B76]">Sección: {deleteTarget.sectionTitle || "Sin especificar"} · Archivo: {deleteTarget.files[0]?.fileName || "Sin archivo"}</span></> : null}
+        confirmLabel="Eliminar recurso"
         loading={isDeleting}
         onCancel={() => setDeleteTarget(null)}
         onConfirm={() => void handleDelete()}

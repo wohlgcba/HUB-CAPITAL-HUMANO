@@ -6,7 +6,7 @@ import { formatDate, formatFileKind, formatFileSize } from "../lib/formatters";
 import { logAuditEvent } from "../services/auditService";
 import { deleteResource, getResourceDownloadUrl, listAdminSectionResources, listSectionResources } from "../services/resourceService";
 import { getErrorMessage } from "../services/serviceError";
-import { getAdminSectionBySlug, getSectionBySlug, listAdminSections } from "../services/sectionService";
+import { deleteSection, getAdminSectionBySlug, getSectionBySlug, listAdminSections } from "../services/sectionService";
 import type { HubSection } from "../types/hub";
 import type { ResourceFileKind, SectionResource } from "../types/resources";
 import type { AppIconName } from "./AppIcon";
@@ -58,6 +58,7 @@ export function SectionDetailPage() {
   const [resourceFormOpen, setResourceFormOpen] = useState(false);
   const [editingResource, setEditingResource] = useState<SectionResource | null>(null);
   const [deletingResource, setDeletingResource] = useState<SectionResource | null>(null);
+  const [isSectionDeleteOpen, setIsSectionDeleteOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [refreshVersion, setRefreshVersion] = useState(0);
 
@@ -123,6 +124,24 @@ export function SectionDetailPage() {
     }
   };
 
+  const handleDeleteSection = async () => {
+    if (!section) return;
+    setIsDeleting(true);
+    try {
+      const result = await deleteSection(section);
+      void logAuditEvent("section_deleted", "section", section.id);
+      notify.success("Sección eliminada", {
+        description: result.storageCleanupFailed ? "La sección se eliminó; quedó una limpieza de Storage pendiente." : "La sección y sus relaciones fueron eliminadas.",
+      });
+      setIsSectionDeleteOpen(false);
+      navigate("/");
+    } catch (deleteError) {
+      notify.error("No se pudo eliminar la sección", { description: getErrorMessage(deleteError, "Intentá nuevamente.") });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const handleDownload = async (resource: SectionResource) => {
     const file = resource.files.find((candidate) => candidate.allowDownload);
     if (!file) return;
@@ -159,7 +178,8 @@ export function SectionDetailPage() {
             {isAdmin ? (
               <>
                 <button type="button" onClick={() => setSectionFormOpen(true)} className="inline-flex min-h-11 items-center gap-2 rounded-[6px] border border-[#0072BC] bg-white px-4 text-[13px] font-extrabold text-[#0072BC]"><AppIcon name="edit" size={17} /> Editar sección</button>
-                <button type="button" onClick={() => { setEditingResource(null); setResourceFormOpen(true); }} className="inline-flex min-h-11 items-center gap-2 rounded-[6px] bg-[#0072BC] px-4 text-[13px] font-extrabold text-white"><AppIcon name="plus" size={18} /> Añadir recurso</button>
+                <button type="button" onClick={() => { setEditingResource(null); setResourceFormOpen(true); }} className="inline-flex min-h-11 items-center gap-2 rounded-[6px] bg-[#0072BC] px-4 text-[13px] font-extrabold text-white"><AppIcon name="plus" size={18} /> Añadir contenido</button>
+                <button type="button" onClick={() => setIsSectionDeleteOpen(true)} className="inline-flex min-h-11 items-center gap-2 rounded-[6px] border border-[#D9A5A5] bg-white px-4 text-[13px] font-extrabold text-[#B52F2F] hover:bg-[#FFF4F4]"><AppIcon name="trash" size={17} /> Eliminar sección</button>
               </>
             ) : null}
             <BackButton onBack={() => navigate("/")} />
@@ -222,6 +242,18 @@ export function SectionDetailPage() {
             resource={editingResource}
             onCancel={() => { setResourceFormOpen(false); setEditingResource(null); }}
             onSaved={() => { setResourceFormOpen(false); setEditingResource(null); setRefreshVersion((version) => version + 1); }}
+          />
+          <ConfirmDialog
+            open={isSectionDeleteOpen}
+            title="¿Eliminar esta sección?"
+            description="Esta acción eliminará la sección y puede afectar a los recursos asociados."
+            details={<><strong>{section.title}</strong><span className="ml-2 text-[#5F6B76]">· {section.resourceCount} recursos afectados</span></>}
+            confirmLabel="Eliminar sección"
+            requireAcknowledgement={section.resourceCount > 0}
+            acknowledgementLabel="Confirmo que deseo eliminar también los recursos asociados."
+            loading={isDeleting}
+            onCancel={() => setIsSectionDeleteOpen(false)}
+            onConfirm={() => void handleDeleteSection()}
           />
           <ConfirmDialog
             open={Boolean(deletingResource)}

@@ -5,7 +5,6 @@ import { AppIcon } from "./AppIcon";
 const userTabs: Array<{ id: string; label: string; icon: AppIconName }> = [
   { id: "hub", label: "HUB", icon: "home" },
   { id: "directorio", label: "Directorio", icon: "usersGroup" },
-  { id: "mapa", label: "Mapa", icon: "mapPin" },
 ];
 
 const adminTabs: Array<{ id: string; label: string; icon: AppIconName }> = [
@@ -33,7 +32,7 @@ export function MainTabs({ active: activeProp, isAdmin = false, onChange }: Main
   return (
     <nav className="h-[52px] w-screen max-w-full overflow-hidden border-b border-[#D8E0E6] bg-white">
       <div className="mx-auto flex h-full w-full max-w-[1672px] items-center px-0 sm:px-4">
-        <div className="grid h-full w-full grid-cols-3 sm:max-w-[720px]">
+        <div className={`grid h-full w-full ${isAdmin ? "grid-cols-3 sm:max-w-[720px]" : "grid-cols-2 sm:max-w-[480px]"}`}>
           {tabs.map((tab) => {
             const isActive = active === tab.id;
             return (

@@ -37,6 +37,17 @@ export type RecentResource = SectionResource & {
   sectionTitle: string | null;
 };
 
+export type ResourceSearchItem = {
+  id: string;
+  title: string;
+  description: string | null;
+  sectionId: string;
+  sectionTitle: string;
+  fileKind: ResourceFileKind | null;
+  fileName: string | null;
+  publishedAt: string;
+};
+
 export type ResourceInput = {
   sectionId: string;
   title: string;
