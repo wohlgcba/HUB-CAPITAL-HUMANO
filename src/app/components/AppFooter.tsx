@@ -7,7 +7,7 @@ export function AppFooter() {
         <img src={logoBAUrl} alt="Buenos Aires Ciudad" className="h-[44px] w-auto max-w-[136px] shrink-0 object-contain brightness-0 invert" />
         <div className="hidden h-[44px] w-px bg-white/30 sm:block" />
         <div className="text-[12px] font-semibold leading-[1.2] text-white sm:text-[13px]">
-          <p>Subsecretaría de</p>
+          <p>Subsecretaría</p>
           <p>Cultura Ciudadana y</p>
           <p>Responsabilidad Social</p>
         </div>

@@ -1,5 +1,6 @@
 import type { DirectoryPersonSummary } from "../types/directory";
 import { AppIcon } from "./AppIcon";
+import { AvatarImage } from "./AvatarImage";
 import { LinkTypeBadge } from "./LinkTypeBadge";
 
 type PersonCardProps = {
@@ -34,8 +35,9 @@ export function PersonCard({
   return (
     <article className={`grid min-w-0 items-center gap-4 rounded-[10px] border bg-white px-4 py-3.5 shadow-[0_2px_10px_rgba(21,50,68,0.035)] transition hover:shadow-[0_6px_18px_rgba(21,50,68,0.055)] sm:px-5 xl:min-h-[86px] ${person.isActive ? "border-[#E3E8EC] hover:border-[#D2DCE4]" : "border-[#E9D9A3] bg-[#FFFDF6]"} ${columns}`}>
       <div className="flex min-w-0 items-center gap-4">
-        <span className="flex h-[54px] w-[54px] shrink-0 items-center justify-center overflow-hidden rounded-full text-[19px] font-extrabold text-[#153244]" style={{ backgroundColor: getAvatarColor(person.id) }}>
-          {person.avatarUrl ? <img src={person.avatarUrl} alt={`Foto de perfil de ${person.name}`} className="h-full w-full object-cover" /> : getInitials(person.name)}
+        <span className="relative flex h-[54px] w-[54px] shrink-0 items-center justify-center overflow-hidden rounded-full text-[19px] font-extrabold text-[#153244]" style={{ backgroundColor: getAvatarColor(person.id) }}>
+          {getInitials(person.name)}
+          <AvatarImage src={person.avatarUrl} alt={`Foto de perfil de ${person.name}`} />
         </span>
         <div className="min-w-0">
           <h3 className="truncate text-[18px] font-extrabold leading-tight text-[#061947]">{person.name}</h3>

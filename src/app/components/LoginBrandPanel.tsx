@@ -14,7 +14,7 @@ export function LoginBrandPanel() {
             />
             <div className="h-[44px] w-px bg-white/35 md:h-[52px]" />
             <div className="max-w-[205px] text-[12px] font-semibold leading-[1.12] md:text-[15px]">
-              <p>Subsecretaría de</p>
+              <p>Subsecretaría</p>
               <p>Cultura Ciudadana y</p>
               <p>Responsabilidad Social</p>
             </div>

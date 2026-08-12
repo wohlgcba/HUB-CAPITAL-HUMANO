@@ -63,6 +63,17 @@ export function DirectoryPage() {
   const requestIdRef = useRef(0);
 
   useEffect(() => {
+    const handleAvatarUpdate = (event: Event) => {
+      const detail = (event as CustomEvent<{ directoryPersonId: string | null; avatarUrl: string | null }>).detail;
+      if (!detail?.directoryPersonId) return;
+      setPeople((current) => current.map((person) => person.id === detail.directoryPersonId ? { ...person, avatarUrl: detail.avatarUrl } : person));
+      setSelectedPerson((current) => current?.id === detail.directoryPersonId ? { ...current, avatarUrl: detail.avatarUrl } : current);
+    };
+    window.addEventListener("profile-avatar-updated", handleAvatarUpdate);
+    return () => window.removeEventListener("profile-avatar-updated", handleAvatarUpdate);
+  }, []);
+
+  useEffect(() => {
     let cancelled = false;
     setIsLoadingFilters(true);
     void getDirectoryFilterOptions(isAdmin)

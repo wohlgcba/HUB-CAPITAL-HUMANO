@@ -91,6 +91,9 @@ export function ProfileModal({ onClose, onAvatarChange }: ProfileModalProps) {
       setProfile((current) => current ? { ...current, ...avatar } : current);
       setSelectedFile(null);
       onAvatarChange?.(avatar.avatarUrl);
+      window.dispatchEvent(new CustomEvent("profile-avatar-updated", {
+        detail: { directoryPersonId: profile.directoryPersonId, avatarUrl: avatar.avatarUrl },
+      }));
       toast.success("Foto de perfil actualizada", { description: "El cambio ya está guardado en tu perfil." });
     } catch (saveError) {
       toast.error("No se pudo guardar la foto", { description: getErrorMessage(saveError, "Intentá nuevamente.") });

@@ -1,6 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router";
 import { useNotifications } from "../context/NotificationContext";
+import { getMyProfileDetails } from "../services/profileService";
 import type { UserProfile } from "../types/auth";
 import { AppIcon } from "./AppIcon";
 import { ProfileModal } from "./ProfileModal";
@@ -25,6 +26,18 @@ export function AppHeader({ profile, onLogout }: AppHeaderProps) {
   const notificationsButtonRef = useRef<HTMLButtonElement>(null);
   const initials = getInitials(profile.fullName);
   const roleLabel = profile.role === "admin" ? "Administrador" : "Integrante";
+
+  useEffect(() => {
+    let cancelled = false;
+    void getMyProfileDetails()
+      .then((details) => {
+        if (!cancelled) setAvatarUrl(details.avatarUrl);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [profile.id]);
 
   useEffect(() => {
     const handlePointerDown = (event: PointerEvent) => {

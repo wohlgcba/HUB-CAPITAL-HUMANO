@@ -10,7 +10,7 @@ import type {
 } from "../types/directory";
 import { getAdminPersonAccess } from "./adminService";
 import { toServiceError } from "./serviceError";
-import { getSignedAssetUrl } from "./storageService";
+import { getSignedAssetUrls } from "./storageService";
 
 type PersonSummaryRow = {
   id: string;
@@ -222,13 +222,29 @@ async function getProfilesByPerson(personIds: string[]) {
 }
 
 async function getAvatarUrlsByPerson(profilesByPerson: Map<string, ProfileSummaryRow>) {
-  const avatarEntries = await Promise.all(
-    [...profilesByPerson.entries()].map(async ([personId, profile]) => [
-      personId,
-      await getSignedAssetUrl("profile-avatars", profile.avatar_path),
-    ] as const),
-  );
-  return new Map(avatarEntries);
+  const profiles = [...profilesByPerson.entries()];
+  const serverUrls = await requestDirectoryAvatarUrls(profiles.map(([personId]) => personId));
+  if (serverUrls) return serverUrls;
+  const urlsByPath = await getSignedAssetUrls("profile-avatars", profiles.map(([, profile]) => profile.avatar_path));
+  return new Map(profiles.map(([personId, profile]) => [personId, profile.avatar_path ? urlsByPath.get(profile.avatar_path) ?? null : null]));
+}
+
+async function requestDirectoryAvatarUrls(personIds: string[]) {
+  if (personIds.length === 0) return new Map<string, string | null>();
+  try {
+    const { data, error } = await supabase.auth.getSession();
+    if (error || !data.session) return null;
+    const response = await fetch("/api/directory-avatars", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${data.session.access_token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ personIds }),
+    });
+    if (!response.ok) return null;
+    const payload = await response.json() as { avatars?: Record<string, string | null> };
+    return new Map(Object.entries(payload.avatars ?? {}));
+  } catch {
+    return null;
+  }
 }
 
 function mapSummary(

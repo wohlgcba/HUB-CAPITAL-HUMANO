@@ -6,9 +6,13 @@ const signedUrlLifetimeSeconds = 60 * 60;
 const sectionBannerLimit = 10 * 1024 * 1024;
 const resourceFileLimit = 50 * 1024 * 1024;
 const profileAvatarLimit = 5 * 1024 * 1024;
+const signedUrlRefreshMarginMs = 5 * 60 * 1000;
 
 type HubBucket = "section-banners" | "resource-covers" | "resource-files" | "profile-avatars";
 type StoredObject = { bucket: HubBucket | string; path: string };
+type CachedSignedUrl = { url: string; expiresAt: number };
+
+const signedUrlCache = new Map<string, CachedSignedUrl>();
 
 const resourceKindsByExtension: Record<string, ResourceFileKind> = {
   pdf: "pdf",
@@ -27,9 +31,43 @@ const resourceKindsByExtension: Record<string, ResourceFileKind> = {
 export async function getSignedAssetUrl(bucket: string, storagePath: string | null) {
   if (!storagePath) return null;
 
+  const cacheKey = `${bucket}:${storagePath}`;
+  const cached = signedUrlCache.get(cacheKey);
+  if (cached && cached.expiresAt - signedUrlRefreshMarginMs > Date.now()) return cached.url;
+
   const { data, error } = await supabase.storage.from(bucket).createSignedUrl(storagePath, signedUrlLifetimeSeconds);
   if (error) return null;
+  signedUrlCache.set(cacheKey, { url: data.signedUrl, expiresAt: Date.now() + signedUrlLifetimeSeconds * 1000 });
   return data.signedUrl;
+}
+
+export async function getSignedAssetUrls(bucket: string, storagePaths: Array<string | null>) {
+  const uniquePaths = [...new Set(storagePaths.filter((path): path is string => Boolean(path)))];
+  const urlsByPath = new Map<string, string | null>();
+  const pathsToSign: string[] = [];
+
+  for (const path of uniquePaths) {
+    const cached = signedUrlCache.get(`${bucket}:${path}`);
+    if (cached && cached.expiresAt - signedUrlRefreshMarginMs > Date.now()) urlsByPath.set(path, cached.url);
+    else pathsToSign.push(path);
+  }
+
+  if (pathsToSign.length > 0) {
+    const { data, error } = await supabase.storage.from(bucket).createSignedUrls(pathsToSign, signedUrlLifetimeSeconds);
+    if (!error && data) {
+      for (const [index, result] of data.entries()) {
+        const path = result.path ?? pathsToSign[index];
+        if (!path) continue;
+        const url = result.signedUrl ?? null;
+        urlsByPath.set(path, url);
+        if (url) signedUrlCache.set(`${bucket}:${path}`, { url, expiresAt: Date.now() + signedUrlLifetimeSeconds * 1000 });
+      }
+    } else {
+      for (const path of pathsToSign) urlsByPath.set(path, null);
+    }
+  }
+
+  return urlsByPath;
 }
 
 export async function getDownloadUrl(file: ResourceFile) {
