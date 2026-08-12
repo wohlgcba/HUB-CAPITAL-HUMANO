@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router";
 import { toast as notify } from "sonner";
 import { useAuth } from "../context/AuthContext";
-import { formatDate, formatFileKind, formatFileSize } from "../lib/formatters";
+import { formatFileKind, formatFileSize } from "../lib/formatters";
 import { logAuditEvent } from "../services/auditService";
 import { deleteResource, getResourceDownloadUrl, listAdminSectionResources, listSectionResources } from "../services/resourceService";
 import { getErrorMessage } from "../services/serviceError";
@@ -19,14 +19,10 @@ const bannerStyles = {
   cyan: {
     glow: "bg-[radial-gradient(circle_at_18%_22%,rgba(0,114,188,0.24),transparent_34%),linear-gradient(115deg,#062A43_0%,#073653_58%,#06304A_100%)]",
     accentLarge: "bg-[#35C8D0]/85",
-    accentMain: "bg-[#35C8D0]/95",
-    halo: "shadow-[0_0_0_34px_rgba(53,200,208,0.18)]",
   },
   yellow: {
     glow: "bg-[radial-gradient(circle_at_18%_22%,rgba(255,204,0,0.18),transparent_34%),linear-gradient(115deg,#062A43_0%,#073653_58%,#102F3F_100%)]",
     accentLarge: "bg-[#FFCC00]/80",
-    accentMain: "bg-[#FFCC00]/95",
-    halo: "shadow-[0_0_0_34px_rgba(255,204,0,0.12)]",
   },
 };
 
@@ -166,27 +162,14 @@ export function SectionDetailPage() {
   return (
     <main className="mx-auto flex w-screen max-w-[1888px] flex-col gap-5 px-4 py-[18px] sm:px-6 lg:px-8">
       <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-5">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <nav aria-label="Breadcrumb" className="text-[13px] font-bold text-[#5F6B76]">
-            <ol className="flex flex-wrap items-center gap-2">
-              <li>HUB</li>
-              <li className="text-[#9AA6B2]">/</li>
-              <li className="text-[#153244]">{section.title}</li>
-            </ol>
-          </nav>
-          <div className="flex flex-wrap items-center gap-2">
-            {isAdmin ? (
-              <>
-                <button type="button" onClick={() => setSectionFormOpen(true)} className="inline-flex min-h-11 items-center gap-2 rounded-[6px] border border-[#0072BC] bg-white px-4 text-[13px] font-extrabold text-[#0072BC]"><AppIcon name="edit" size={17} /> Editar sección</button>
-                <button type="button" onClick={() => { setEditingResource(null); setResourceFormOpen(true); }} className="inline-flex min-h-11 items-center gap-2 rounded-[6px] bg-[#0072BC] px-4 text-[13px] font-extrabold text-white"><AppIcon name="plus" size={18} /> Añadir contenido</button>
-                <button type="button" onClick={() => setIsSectionDeleteOpen(true)} className="inline-flex min-h-11 items-center gap-2 rounded-[6px] border border-[#D9A5A5] bg-white px-4 text-[13px] font-extrabold text-[#B52F2F] hover:bg-[#FFF4F4]"><AppIcon name="trash" size={17} /> Eliminar sección</button>
-              </>
-            ) : null}
-            <BackButton onBack={() => navigate("/")} />
-          </div>
-        </div>
-
-        <SectionBanner section={section} />
+        <SectionBanner
+          section={section}
+          isAdmin={isAdmin}
+          onEditSection={() => setSectionFormOpen(true)}
+          onAddContent={() => { setEditingResource(null); setResourceFormOpen(true); }}
+          onDeleteSection={() => setIsSectionDeleteOpen(true)}
+          onBack={() => navigate("/")}
+        />
 
         <section className="flex flex-col gap-4" aria-labelledby="section-resources-title">
           <h2 id="section-resources-title" className="text-[clamp(22px,2vw,30px)] font-extrabold text-[#153244]">
@@ -274,8 +257,7 @@ export function SectionDetailPage() {
 function SectionLoading() {
   return (
     <main className="mx-auto w-screen max-w-[1400px] animate-pulse px-4 py-[18px] sm:px-6 lg:px-8" aria-label="Cargando sección">
-      <div className="h-[44px] w-40 rounded bg-[#E5EAEE]" />
-      <div className="mt-5 h-[380px] rounded-[14px] bg-[#D9E2E8]" />
+      <div className="h-[188px] rounded-[12px] bg-[#D9E2E8] sm:h-[150px] xl:h-[112px]" />
       <div className="mt-5 h-40 rounded-[12px] bg-[#E9EEF1]" />
     </main>
   );
@@ -306,29 +288,61 @@ function BackButton({ onBack }: { onBack: () => void }) {
   );
 }
 
-function SectionBanner({ section }: { section: HubSection }) {
+function SectionBanner({
+  section,
+  isAdmin,
+  onEditSection,
+  onAddContent,
+  onDeleteSection,
+  onBack,
+}: {
+  section: HubSection;
+  isAdmin: boolean;
+  onEditSection: () => void;
+  onAddContent: () => void;
+  onDeleteSection: () => void;
+  onBack: () => void;
+}) {
   const useYellow = section.category.toLocaleLowerCase("es-AR").includes("programa");
   const variant = useYellow ? bannerStyles.yellow : bannerStyles.cyan;
   return (
-    <section className="relative min-h-[350px] overflow-hidden rounded-[14px] bg-[#062A43] px-7 py-8 text-white shadow-[0_4px_16px_rgba(21,50,68,0.12)] sm:px-10 lg:min-h-[380px] lg:px-12 lg:py-10">
+    <section className="relative overflow-hidden rounded-[12px] bg-[#062A43] px-5 py-5 text-white shadow-[0_4px_14px_rgba(21,50,68,0.1)] sm:px-6">
       {section.bannerUrl ? <img src={section.bannerUrl} alt="" className="absolute inset-0 h-full w-full object-cover opacity-30" /> : null}
       <div className={`absolute inset-0 ${variant.glow}`} />
-      <div className={`absolute -right-16 bottom-[-88px] h-[250px] w-[250px] rounded-full ${variant.accentLarge}`} />
-      <div className={`absolute right-[12%] top-[78px] hidden h-[160px] w-[160px] rounded-full md:block ${variant.accentMain} ${variant.halo}`} />
-      <div className="absolute right-[16%] top-[116px] hidden h-[84px] w-[84px] items-center justify-center rounded-full bg-[#FFCC00] text-[#062A43] md:flex">
-        <AppIcon name={getSectionIcon(section)} size={44} />
-      </div>
-      <div className="relative z-10 flex min-h-[286px] max-w-[660px] flex-col justify-between gap-8">
-        <div>
-          <h1 className="text-[clamp(34px,4vw,56px)] font-extrabold leading-[1.03]">{section.title}</h1>
-          <p className="mt-5 max-w-[600px] text-[clamp(16px,1.5vw,20px)] font-semibold leading-[1.45]">{section.description}</p>
+      <div className={`absolute -right-9 -top-14 h-36 w-36 rounded-full opacity-75 ${variant.accentLarge}`} />
+      <div className="relative z-10 grid min-h-[72px] items-center gap-4 xl:grid-cols-[minmax(280px,1fr)_auto]">
+        <div className="min-w-0 xl:pr-4">
+          <h1 className="text-[clamp(25px,2.5vw,34px)] font-extrabold leading-tight">{section.title}</h1>
+          <p className="mt-1 line-clamp-2 max-w-[660px] text-[13px] font-semibold leading-[1.4] text-white/90 sm:text-[14px]">{section.description}</p>
         </div>
-        <div className="flex flex-wrap gap-3 text-[#153244]">
-          <span className="inline-flex min-h-11 items-center rounded-[7px] bg-[#8DE2D6] px-4 text-[14px] font-extrabold">{section.resourceCount} recursos</span>
-          <span className="inline-flex min-h-11 items-center rounded-[7px] bg-white px-4 text-[14px] font-extrabold">Actualizado el {formatDate(section.updatedAt)}</span>
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap xl:justify-end">
+          {isAdmin ? (
+            <>
+              <BannerAction onClick={onEditSection} icon="edit" label="Editar sección" tone="secondary" />
+              <BannerAction onClick={onAddContent} icon="plus" label="Añadir contenido" tone="primary" />
+              <BannerAction onClick={onDeleteSection} icon="trash" label="Eliminar sección" tone="danger" />
+            </>
+          ) : null}
+          <BannerAction onClick={onBack} icon="chevronLeft" label="Volver al HUB" tone="light" />
         </div>
       </div>
     </section>
+  );
+}
+
+function BannerAction({ onClick, icon, label, tone }: { onClick: () => void; icon: AppIconName; label: string; tone: "primary" | "secondary" | "danger" | "light" }) {
+  const toneClass = {
+    primary: "border-[#FFCC00] bg-[#FFCC00] text-[#153244] hover:bg-[#FFDA3D]",
+    secondary: "border-white/45 bg-white/10 text-white hover:bg-white/20",
+    danger: "border-[#FFB7B7]/70 bg-[#8F2020]/45 text-white hover:bg-[#A92B2B]/65",
+    light: "border-white bg-white text-[#153244] hover:bg-[#F1F5F7]",
+  }[tone];
+
+  return (
+    <button type="button" onClick={onClick} className={`inline-flex min-h-9 items-center justify-center gap-1.5 whitespace-nowrap rounded-[6px] border px-3 text-[12px] font-extrabold shadow-[0_2px_7px_rgba(0,0,0,0.12)] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#FFCC00] ${toneClass}`}>
+      <AppIcon name={icon} size={15} />
+      {label}
+    </button>
   );
 }
 
@@ -360,13 +374,4 @@ function SectionResourceCard({ resource, onOpen, onDownload, isAdmin, onEdit, on
       </div>
     </article>
   );
-}
-
-function getSectionIcon(section: HubSection): AppIconName {
-  const value = `${section.title} ${section.category}`.toLocaleLowerCase("es-AR");
-  if (value.includes("encuentro")) return "calendar";
-  if (value.includes("reconocimiento")) return "certificate";
-  if (value.includes("guía") || value.includes("guia")) return "clipboard";
-  if (value.includes("salud")) return "bulb";
-  return "target";
 }

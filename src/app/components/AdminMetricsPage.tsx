@@ -1,88 +1,91 @@
-import { useEffect, useState } from "react";
-import { getAdminMetrics } from "../services/adminService";
-import { getErrorMessage } from "../services/serviceError";
-import type { AdminMetricGroup, AdminMetrics } from "../types/admin";
-import { AppIcon, type AppIconName } from "./AppIcon";
+import { useState } from "react";
+import { IconCalendar, IconChevronDown, IconInfoCircle, IconRefresh } from "@tabler/icons-react";
+import { metricKpis, metricsSummary } from "../data/adminMetricsDemo";
+import { ActivityChart } from "./metrics/ActivityChart";
+import { AreaParticipation } from "./metrics/AreaParticipation";
+import { DirectoryStatus } from "./metrics/DirectoryStatus";
+import { MetricCard } from "./metrics/MetricCard";
+import { RecentActivity } from "./metrics/RecentActivity";
+import { TopResources } from "./metrics/TopResources";
+import { TopSections } from "./metrics/TopSections";
+import { UserStatusPanel } from "./metrics/UserStatusPanel";
+
+const periodOptions = ["Últimos 7 días", "30 días", "90 días", "Este año", "Personalizado"];
 
 export function AdminMetricsPage() {
-  const [metrics, setMetrics] = useState<AdminMetrics | null>(null);
-  const [error, setError] = useState("");
-  const [isLoading, setIsLoading] = useState(true);
+  const [activePeriod, setActivePeriod] = useState("Últimos 7 días");
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
-    void getAdminMetrics()
-      .then((nextMetrics) => {
-        if (!cancelled) setMetrics(nextMetrics);
-      })
-      .catch((loadError: unknown) => {
-        if (!cancelled) setError(getErrorMessage(loadError, "No se pudieron cargar las métricas."));
-      })
-      .finally(() => {
-        if (!cancelled) setIsLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  function handleRefresh() {
+    setIsRefreshing(true);
+    window.setTimeout(() => setIsRefreshing(false), 650);
+  }
 
   return (
-    <main className="mx-auto w-screen max-w-[1888px] px-4 py-6 sm:px-6 lg:px-8">
-      <div>
-        <p className="text-[12px] font-extrabold uppercase text-[#007D95]">Administración</p>
-        <h1 className="mt-1 text-[clamp(28px,3vw,38px)] font-extrabold leading-tight text-[#061947]">Métricas</h1>
-        <p className="mt-2 text-[14px] font-semibold text-[#5F6B76]">Indicadores calculados con los datos actuales del HUB.</p>
-      </div>
+    <main className="mx-auto w-screen max-w-[1888px] px-4 py-5 sm:px-6 lg:px-8">
+      <header className="grid gap-5 xl:grid-cols-[minmax(300px,1fr)_auto] xl:items-start">
+        <div>
+          <p className="text-[11px] font-extrabold uppercase text-[#007D95]">Métricas</p>
+          <h1 className="mt-1 text-[clamp(28px,3vw,36px)] font-extrabold leading-tight text-[#061947]">Resumen de actividad</h1>
+          <p className="mt-1 text-[13px] font-semibold text-[#536779]">Analizá el uso del HUB y el comportamiento de los usuarios.</p>
+        </div>
 
-      {error ? <div role="alert" className="mt-5 rounded-[10px] border border-[#F0B8B8] bg-[#FFF4F4] px-5 py-4 text-[14px] font-bold text-[#C93B3B]">{error}</div> : null}
+        <div className="min-w-0 xl:max-w-[820px]">
+          <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center xl:justify-end">
+            <div className="max-w-full overflow-x-auto pb-1">
+              <div className="inline-flex min-w-max overflow-hidden rounded-[7px] border border-[#CCD7DF] bg-white">
+                {periodOptions.map((period, index) => (
+                  <button
+                    key={period}
+                    type="button"
+                    onClick={() => setActivePeriod(period)}
+                    className={`inline-flex min-h-10 items-center gap-2 border-r border-[#DDE5EA] px-4 text-[11px] font-extrabold last:border-r-0 ${activePeriod === period ? "bg-[#153244] text-white" : "bg-white text-[#153244] hover:bg-[#F4F7F9]"}`}
+                  >
+                    {index === 0 || period === "Personalizado" ? <IconCalendar size={15} /> : null}
+                    {period}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <button type="button" className="inline-flex min-h-10 shrink-0 items-center justify-between gap-5 rounded-[7px] border border-[#CCD7DF] bg-white px-4 text-[11px] font-extrabold text-[#153244]">
+              Todas las secciones
+              <IconChevronDown size={15} />
+            </button>
+          </div>
+          <div className="mt-2 flex flex-wrap items-center justify-between gap-3 text-[11px] font-semibold text-[#718296] xl:justify-end xl:gap-6">
+            <span>Período: {metricsSummary.period}</span>
+            <button type="button" onClick={handleRefresh} disabled={isRefreshing} className="inline-flex min-h-10 items-center gap-2 font-extrabold text-[#0072BC] disabled:opacity-60">
+              <IconRefresh size={16} className={isRefreshing ? "animate-spin" : ""} />
+              Actualizar
+            </button>
+          </div>
+        </div>
+      </header>
 
-      <section className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-5" aria-label="Indicadores principales">
-        <MetricCard title="Usuarios totales" value={metrics?.totalUsers} icon="usersGroup" loading={isLoading} />
-        <MetricCard title="Usuarios activos" value={metrics?.activeUsers} icon="check" loading={isLoading} />
-        <MetricCard title="Secciones" value={metrics?.sections} icon="grid" loading={isLoading} />
-        <MetricCard title="Recursos" value={metrics?.resources} icon="fileText" loading={isLoading} />
-        <MetricCard title="Agregados en 30 días" value={metrics?.recentResources} icon="calendar" loading={isLoading} />
+      <section className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Indicadores principales">
+        {metricKpis.map((metric) => <MetricCard key={metric.id} metric={metric} />)}
       </section>
 
-      <div className="mt-6 grid gap-5 xl:grid-cols-2">
-        <MetricPanel title="Recursos por sección" groups={metrics?.resourcesBySection ?? []} loading={isLoading} />
-        <MetricPanel title="Usuarios por área" groups={metrics?.usersByArea ?? []} loading={isLoading} />
+      <div className="mt-4 grid items-stretch gap-4 xl:grid-cols-[minmax(0,1.55fr)_minmax(340px,.95fr)]">
+        <ActivityChart />
+        <TopSections />
+      </div>
+
+      <div className="mt-4 grid items-stretch gap-4 xl:grid-cols-[minmax(0,1.55fr)_minmax(340px,.95fr)]">
+        <TopResources />
+        <UserStatusPanel />
+      </div>
+
+      <div className="mt-4 grid items-stretch gap-4 xl:grid-cols-3">
+        <AreaParticipation />
+        <DirectoryStatus />
+        <RecentActivity />
+      </div>
+
+      <div className="mt-4 flex min-h-12 items-center gap-3 rounded-[7px] border border-[#BFE4F4] bg-[#E7F6FC] px-4 py-3 text-[11px] font-semibold text-[#31566B]">
+        <IconInfoCircle size={19} className="shrink-0 text-[#0072BC]" />
+        <p>Las métricas se actualizan cada 30 minutos. Los datos pueden tener un pequeño retraso.</p>
       </div>
     </main>
-  );
-}
-
-function MetricCard({ title, value, icon, loading }: { title: string; value: number | undefined; icon: AppIconName; loading: boolean }) {
-  return (
-    <article className="flex min-h-[110px] items-center gap-4 rounded-[11px] border border-[#E3E8EC] bg-white p-4 shadow-[0_2px_10px_rgba(21,50,68,0.05)]">
-      <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[9px] bg-[#DDF8F5] text-[#007D95]"><AppIcon name={icon} size={25} /></span>
-      <div className="min-w-0">
-        {loading ? <span className="block h-8 w-16 animate-pulse rounded bg-[#E5EAEE]" /> : <p className="text-[27px] font-extrabold leading-none text-[#061947]">{value ?? 0}</p>}
-        <h2 className="mt-2 text-[12px] font-extrabold leading-tight text-[#153244]">{title}</h2>
-      </div>
-    </article>
-  );
-}
-
-function MetricPanel({ title, groups, loading }: { title: string; groups: AdminMetricGroup[]; loading: boolean }) {
-  const max = Math.max(1, ...groups.map((group) => group.value));
-  return (
-    <section className="rounded-[12px] border border-[#E3E8EC] bg-white p-5 shadow-[0_2px_10px_rgba(21,50,68,0.05)]">
-      <h2 className="text-[18px] font-extrabold text-[#061947]">{title}</h2>
-      {loading ? (
-        <div className="mt-5 space-y-4" aria-label={`Cargando ${title}`}>{Array.from({ length: 5 }, (_, index) => <div key={index} className="h-10 animate-pulse rounded bg-[#EEF1F3]" />)}</div>
-      ) : groups.length > 0 ? (
-        <div className="mt-5 space-y-4">
-          {groups.map((group) => (
-            <div key={group.label}>
-              <div className="mb-1.5 flex items-end justify-between gap-4 text-[12px] font-bold"><span className="min-w-0 text-[#153244]">{group.label}</span><span className="shrink-0 text-[#5F6B76]">{group.value}</span></div>
-              <div className="h-2 overflow-hidden rounded-full bg-[#E8EEF2]"><span className="block h-full rounded-full bg-[#21AFC0]" style={{ width: `${(group.value / max) * 100}%` }} /></div>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <div className="mt-5 rounded-[9px] border border-dashed border-[#C9D5DE] px-4 py-10 text-center text-[13px] font-bold text-[#5F6B76]">No hay datos disponibles para calcular este indicador.</div>
-      )}
-    </section>
   );
 }

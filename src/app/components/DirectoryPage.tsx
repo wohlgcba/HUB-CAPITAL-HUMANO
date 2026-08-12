@@ -19,7 +19,6 @@ import type { DirectoryFilterOptions, DirectoryPersonDetail, DirectoryPersonSumm
 import { AppIcon } from "./AppIcon";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { DirectoryFilters } from "./DirectoryFilters";
-import { DirectoryInfoPanel } from "./DirectoryInfoPanel";
 import { DirectorySearch } from "./DirectorySearch";
 import { PersonCard } from "./PersonCard";
 import { PersonDetailModal } from "./PersonDetailModal";
@@ -245,7 +244,7 @@ export function DirectoryPage() {
         </details>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[270px_minmax(0,1fr)_270px]">
+      <div className="grid gap-6 xl:grid-cols-[270px_minmax(0,1fr)]">
         <div className="hidden xl:block"><DirectoryFilters {...filterProps} /></div>
         <section className="min-w-0">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -285,7 +284,6 @@ export function DirectoryPage() {
           {filteredTotal > pageSize ? <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} /> : null}
           <p className="mt-3 flex flex-wrap items-center justify-center gap-2 text-center text-[13px] font-semibold text-[#5F6B76]"><AppIcon name="clipboard" size={16} />Información de uso interno. No compartas credenciales ni datos sensibles.</p>
         </section>
-        <DirectoryInfoPanel />
       </div>
 
       {selectedPerson ? <PersonDetailModal person={selectedPerson} onClose={handleCloseModal} /> : null}
