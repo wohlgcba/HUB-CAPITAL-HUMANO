@@ -151,7 +151,7 @@ export function AdminHubPage() {
       </section>
 
       <SectionFormDialog open={sectionFormOpen} onCancel={() => setSectionFormOpen(false)} onSaved={() => { setSectionFormOpen(false); void loadDashboard(); }} />
-      <ResourceFormDialog open={resourceFormOpen} sections={sections} initialSectionId={resourceSectionId} resource={editingResource} onCancel={() => { setResourceFormOpen(false); setEditingResource(null); }} onSaved={() => { setResourceFormOpen(false); setEditingResource(null); void loadDashboard(); }} />
+      <ResourceFormDialog open={resourceFormOpen} initialSectionId={resourceSectionId} resource={editingResource} onCancel={() => { setResourceFormOpen(false); setEditingResource(null); }} onSaved={() => { setResourceFormOpen(false); setEditingResource(null); void loadDashboard(); }} />
       <ConfirmDialog
         open={Boolean(deleteTarget)}
         title="¿Eliminar este recurso?"

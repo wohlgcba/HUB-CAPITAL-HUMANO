@@ -6,7 +6,7 @@ import { formatFileKind, formatFileSize } from "../lib/formatters";
 import { logAuditEvent } from "../services/auditService";
 import { deleteResource, getResourceDownloadUrl, listAdminSectionResources, listSectionResources } from "../services/resourceService";
 import { getErrorMessage } from "../services/serviceError";
-import { deleteSection, getAdminSectionBySlug, getSectionBySlug, listAdminSections } from "../services/sectionService";
+import { deleteSection, getAdminSectionBySlug, getSectionBySlug } from "../services/sectionService";
 import type { HubSection } from "../types/hub";
 import type { ResourceFileKind, SectionResource } from "../types/resources";
 import type { AppIconName } from "./AppIcon";
@@ -45,7 +45,6 @@ export function SectionDetailPage() {
   const isAdmin = auth.profile?.role === "admin";
   const [section, setSection] = useState<HubSection | null>(null);
   const [resources, setResources] = useState<SectionResource[]>([]);
-  const [adminSections, setAdminSections] = useState<HubSection[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [error, setError] = useState("");
@@ -80,14 +79,10 @@ export function SectionDetailPage() {
           if (!cancelled) setNotFound(true);
           return;
         }
-        const [nextResources, nextAdminSections] = await Promise.all([
-          isAdmin ? listAdminSectionResources(nextSection.id) : listSectionResources(nextSection.id),
-          isAdmin ? listAdminSections() : Promise.resolve([]),
-        ]);
+        const nextResources = await (isAdmin ? listAdminSectionResources(nextSection.id) : listSectionResources(nextSection.id));
         if (cancelled) return;
         setSection(nextSection);
         setResources(nextResources);
-        setAdminSections(nextAdminSections);
         void logAuditEvent("section_view", "section", nextSection.id);
       })
       .catch((loadError: unknown) => {
@@ -220,7 +215,6 @@ export function SectionDetailPage() {
           />
           <ResourceFormDialog
             open={resourceFormOpen}
-            sections={adminSections.length > 0 ? adminSections : [section]}
             initialSectionId={section.id}
             resource={editingResource}
             onCancel={() => { setResourceFormOpen(false); setEditingResource(null); }}

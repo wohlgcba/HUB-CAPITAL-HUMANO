@@ -3,6 +3,7 @@ import type { Session } from "@supabase/supabase-js";
 import { supabase } from "../lib/supabaseClient";
 import {
   changePassword as changePasswordRequest,
+  changePasswordWithCurrentPassword as changePasswordWithCurrentPasswordRequest,
   getCurrentSession,
   getProfile,
   hydrateAuthenticatedUser,
@@ -18,6 +19,7 @@ type AuthContextValue = AuthState & {
   signIn: (email: string, password: string, remember: boolean) => Promise<void>;
   signOut: () => Promise<void>;
   changePassword: (password: string) => Promise<void>;
+  changePasswordWithCurrentPassword: (currentPassword: string, newPassword: string) => Promise<void>;
   sendPasswordReset: (email: string) => Promise<void>;
 };
 
@@ -113,6 +115,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [state],
   );
 
+  const changePasswordWithCurrentPassword = useCallback(
+    async (currentPassword: string, newPassword: string) => {
+      if (state.status !== "authenticated") throw new Error("No hay una sesión activa.");
+      await changePasswordWithCurrentPasswordRequest(state.profile.email, currentPassword, newPassword);
+      const session = await getCurrentSession();
+      if (!session) throw new Error("No se pudo recuperar la sesión después del cambio de contraseña.");
+      const authenticated = await hydrateAuthenticatedUser(session);
+      setState({ status: "authenticated", session, profile: authenticated.profile, error: null });
+    },
+    [state],
+  );
+
   const value = useMemo<AuthContextValue>(
     () => ({
       ...state,
@@ -120,9 +134,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       signIn,
       signOut,
       changePassword,
+      changePasswordWithCurrentPassword,
       sendPasswordReset: requestPasswordReset,
     }),
-    [changePassword, isPasswordRecovery, signIn, signOut, state],
+    [changePassword, changePasswordWithCurrentPassword, isPasswordRecovery, signIn, signOut, state],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -3,15 +3,13 @@ import { toast } from "sonner";
 import { createResource, updateResource } from "../services/resourceService";
 import { getErrorMessage } from "../services/serviceError";
 import { inferResourceFileKind } from "../services/storageService";
-import type { HubSection } from "../types/hub";
 import type { ResourceFileKind, ResourceInput, SectionResource } from "../types/resources";
 import { AdminForm } from "./AdminForm";
 import { AdminField, AdminSwitch, adminInputClass, adminTextAreaClass } from "./AdminFormFields";
 
 type ResourceFormDialogProps = {
   open: boolean;
-  sections: HubSection[];
-  initialSectionId?: string;
+  initialSectionId: string;
   resource?: SectionResource | null;
   onCancel: () => void;
   onSaved: (resource: SectionResource) => void;
@@ -31,22 +29,21 @@ type ResourceFormState = {
 
 export function ResourceFormDialog({
   open,
-  sections,
   initialSectionId,
   resource = null,
   onCancel,
   onSaved,
 }: ResourceFormDialogProps) {
-  const [form, setForm] = useState<ResourceFormState>(() => createInitialState(resource, initialSectionId, sections));
+  const [form, setForm] = useState<ResourceFormState>(() => createInitialState(resource, initialSectionId));
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (!open) return;
-    setForm(createInitialState(resource, initialSectionId, sections));
+    setForm(createInitialState(resource, initialSectionId));
     setErrors({});
     setLoading(false);
-  }, [initialSectionId, open, resource, sections]);
+  }, [initialSectionId, open, resource]);
 
   const update = <K extends keyof ResourceFormState>(key: K, value: ResourceFormState[K]) => {
     setForm((current) => ({ ...current, [key]: value }));
@@ -99,7 +96,7 @@ export function ResourceFormDialog({
     <AdminForm
       open={open}
       title={resource ? "Editar contenido" : "Añadir contenido"}
-      description="El archivo se guardará en Supabase Storage y quedará asociado a la sección elegida."
+      description="El archivo se guardará en Supabase Storage y quedará asociado a esta sección. El tipo se detectará automáticamente."
       submitLabel={resource ? "Guardar cambios" : "Añadir contenido"}
       loading={loading}
       wide
@@ -107,20 +104,6 @@ export function ResourceFormDialog({
       onCancel={onCancel}
     >
       <div className="grid gap-5 sm:grid-cols-2">
-        <AdminField label="Sección" required error={errors.sectionId}>
-          <select value={form.sectionId} onChange={(event) => update("sectionId", event.target.value)} className={adminInputClass}>
-            <option value="">Seleccionar sección</option>
-            {sections.map((section) => <option key={section.id} value={section.id}>{section.title}{section.isActive ? "" : " (Borrador)"}</option>)}
-          </select>
-        </AdminField>
-        <AdminField label="Tipo de archivo" required error={errors.fileKind}>
-          <select value={form.fileKind} onChange={(event) => update("fileKind", event.target.value as ResourceFileKind)} className={adminInputClass}>
-            <option value="pdf">PDF</option>
-            <option value="powerpoint">PPTX</option>
-            <option value="word">DOCX</option>
-            <option value="spreadsheet">XLSX</option>
-          </select>
-        </AdminField>
         <div className="sm:col-span-2">
           <AdminField label="Título del recurso" required error={errors.title}>
             <input value={form.title} onChange={(event) => update("title", event.target.value)} className={adminInputClass} maxLength={220} />
@@ -154,13 +137,13 @@ export function ResourceFormDialog({
   );
 }
 
-function createInitialState(resource: SectionResource | null | undefined, sectionId: string | undefined, sections: HubSection[]): ResourceFormState {
+function createInitialState(resource: SectionResource | null | undefined, sectionId: string): ResourceFormState {
   return {
-    sectionId: resource?.sectionId ?? sectionId ?? sections[0]?.id ?? "",
+    sectionId: resource?.sectionId ?? sectionId,
     title: resource?.title ?? "",
     description: resource?.description ?? "",
     file: null,
-    fileKind: resource?.files[0]?.fileKind ?? "pdf",
+    fileKind: resource?.files[0]?.fileKind ?? "other",
     isFeatured: resource?.isFeatured ?? false,
     allowDownload: resource?.files[0]?.allowDownload ?? true,
     publishedAt: toDateInput(resource?.publishedAt ?? new Date().toISOString()),

@@ -248,8 +248,8 @@ async function createPerson(adminClient: SupabaseClient, caller: Caller, person:
 
 async function updatePerson(adminClient: SupabaseClient, caller: Caller, personId: string, person: PersonPayload) {
   const current = await getPersonBundle(adminClient, personId);
-  if (current.profile && (!person.email || !person.cuit)) {
-    throw new ApiError("Un usuario con acceso debe conservar email y CUIT.", 422, "ACCOUNT_FIELDS_REQUIRED");
+  if (current.profile && !person.email) {
+    throw new ApiError("Un usuario con acceso debe conservar su email.", 422, "ACCOUNT_FIELDS_REQUIRED");
   }
   if (!current.profile && person.systemRole === "admin" && (!person.email || !person.cuit)) {
     throw new ApiError("Un administrador debe tener email y CUIT.", 422, "ACCOUNT_FIELDS_REQUIRED");

@@ -112,7 +112,7 @@ export function PersonFormDialog({
         <AdminField label="Mail" required={!person || person.hasAccount} error={errors.email}>
           <input type="email" value={form.email} onChange={(event) => update("email", event.target.value)} className={adminInputClass} maxLength={320} autoComplete="off" />
         </AdminField>
-        <AdminField label="CUIT" required={!person || person.hasAccount} hint={person?.hasAccount ? "Cambiar el CUIT no modifica la contraseña personal actual." : "11 dígitos. Se usará solo como contraseña temporal inicial."} error={errors.cuit}>
+        <AdminField label="CUIT" required={!person} hint={person?.hasAccount ? "Cambiar el CUIT no modifica la contraseña personal actual." : "11 dígitos. Se usará solo como contraseña temporal inicial."} error={errors.cuit}>
           <input value={form.cuit} onChange={(event) => update("cuit", event.target.value)} className={adminInputClass} maxLength={14} inputMode="numeric" autoComplete="off" />
         </AdminField>
         <AdminField label="Edificio GCBA" error={errors.building}>
@@ -169,10 +169,7 @@ function validate(form: PersonFormState, isEditing: boolean, hasAccount: boolean
   if (!isEditing && !email) errors.email = "Ingresá el email.";
   if (email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) errors.email = "Ingresá un email válido.";
   if (!isEditing && !cuit) errors.cuit = "Ingresá el CUIT.";
-  if (hasAccount && ((email && !cuit) || (!email && cuit))) {
-    errors.email ||= "Completá email y CUIT juntos.";
-    errors.cuit ||= "Completá email y CUIT juntos.";
-  }
+  if (hasAccount && !email) errors.email = "Una cuenta vinculada debe conservar su email.";
   if (cuit && !isValidCuit(cuit)) errors.cuit = "Ingresá un CUIT válido.";
   if (form.systemRole === "admin" && (!email || !cuit)) errors.systemRole = "Un administrador necesita email y CUIT.";
   return errors;

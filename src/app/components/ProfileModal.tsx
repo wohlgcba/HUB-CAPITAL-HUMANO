@@ -7,6 +7,7 @@ import type { MyProfileDetails } from "../types/profile";
 import { AppIcon } from "./AppIcon";
 import { ProfileAvatarUploader } from "./ProfileAvatarUploader";
 import { ProfileInfoCard } from "./ProfileInfoCard";
+import { ProfilePasswordForm } from "./ProfilePasswordForm";
 
 const focusableSelector =
   'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
@@ -20,20 +21,22 @@ export function ProfileModal({ onClose, onAvatarChange }: ProfileModalProps) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const onCloseRef = useRef(onClose);
-  const isSavingRef = useRef(false);
+  const isBusyRef = useRef(false);
   const [profile, setProfile] = useState<MyProfileDetails | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isPasswordSaving, setIsPasswordSaving] = useState(false);
   const [error, setError] = useState("");
+  const isBusy = isSaving || isPasswordSaving;
 
   useEffect(() => {
     onCloseRef.current = onClose;
   }, [onClose]);
 
   useEffect(() => {
-    isSavingRef.current = isSaving;
-  }, [isSaving]);
+    isBusyRef.current = isBusy;
+  }, [isBusy]);
 
   const loadProfile = useCallback(async () => {
     setIsLoading(true);
@@ -59,7 +62,7 @@ export function ProfileModal({ onClose, onAvatarChange }: ProfileModalProps) {
     closeButtonRef.current?.focus();
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !isSavingRef.current) onCloseRef.current();
+      if (event.key === "Escape" && !isBusyRef.current) onCloseRef.current();
     };
     document.addEventListener("keydown", handleKeyDown);
     return () => {
@@ -81,8 +84,7 @@ export function ProfileModal({ onClose, onAvatarChange }: ProfileModalProps) {
     }
   };
 
-  const handleSave = async (event: React.FormEvent) => {
-    event.preventDefault();
+  const handleSave = async () => {
     if (!profile || !selectedFile || isSaving) return;
 
     setIsSaving(true);
@@ -103,7 +105,7 @@ export function ProfileModal({ onClose, onAvatarChange }: ProfileModalProps) {
   };
 
   const closeIfAvailable = () => {
-    if (!isSaving) onClose();
+    if (!isBusy) onClose();
   };
 
   return createPortal(
@@ -114,16 +116,16 @@ export function ProfileModal({ onClose, onAvatarChange }: ProfileModalProps) {
         aria-modal="true"
         aria-labelledby="profile-modal-title"
         aria-describedby="profile-modal-description"
-        aria-busy={isLoading || isSaving}
+        aria-busy={isLoading || isBusy}
         onKeyDown={handleTrapFocus}
         className="flex h-[100dvh] w-full flex-col overflow-hidden bg-white text-[#153244] shadow-[0_24px_90px_rgba(6,42,67,0.32)] sm:h-auto sm:max-h-[calc(100dvh-40px)] sm:max-w-[1040px] sm:rounded-[14px] sm:border sm:border-[#D8E0E6]"
       >
         <div className="flex shrink-0 items-center justify-between border-b border-[#D8E0E6] px-5 py-4 sm:px-8 sm:py-5">
           <h2 id="profile-modal-title" className="text-[24px] font-extrabold text-[#061947]">Mi perfil</h2>
-          <button ref={closeButtonRef} type="button" onClick={closeIfAvailable} disabled={isSaving} className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-[#C7D1DA] hover:bg-[#F5F7F8] disabled:opacity-50" aria-label="Cerrar Mi perfil"><AppIcon name="x" size={23} /></button>
+          <button ref={closeButtonRef} type="button" onClick={closeIfAvailable} disabled={isBusy} className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-[#C7D1DA] hover:bg-[#F5F7F8] disabled:opacity-50" aria-label="Cerrar Mi perfil"><AppIcon name="x" size={23} /></button>
         </div>
 
-        <form onSubmit={(event) => void handleSave(event)} className="flex min-h-0 flex-1 flex-col">
+        <div className="flex min-h-0 flex-1 flex-col">
           <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-8 sm:py-7">
             {isLoading ? <ProfileModalSkeleton /> : error || !profile ? (
               <div role="alert" className="flex min-h-[420px] flex-col items-center justify-center text-center">
@@ -139,7 +141,7 @@ export function ProfileModal({ onClose, onAvatarChange }: ProfileModalProps) {
                     fullName={profile.fullName}
                     avatarUrl={profile.avatarUrl}
                     selectedFile={selectedFile}
-                    disabled={isSaving}
+                    disabled={isBusy}
                     onSelect={setSelectedFile}
                     onValidationError={(message) => toast.error("Foto no válida", { description: message })}
                   />
@@ -163,8 +165,8 @@ export function ProfileModal({ onClose, onAvatarChange }: ProfileModalProps) {
                     <ProfileInfoCard icon="clipboard" label="CUIT" value={profile.cuit} />
                     <ProfileInfoCard icon="usersGroup" label="Rol del sistema" value={profile.systemRole === "admin" ? "Administrador" : "Usuario"} />
                     <ProfileInfoCard icon="check" label="Estado" value={profile.isActive ? "Activo" : "Inactivo"} />
-                    <ProfileInfoCard icon="refresh" label="Contraseña" value={profile.mustChangePassword ? "Debe cambiarla al ingresar" : "Contraseña personalizada"} />
                   </div>
+                  <ProfilePasswordForm mustChangePassword={profile.mustChangePassword} disabled={isLoading || isSaving} onSavingChange={setIsPasswordSaving} />
                 </ProfileSection>
 
                 <ProfileSection title="Preferencias">
@@ -183,12 +185,12 @@ export function ProfileModal({ onClose, onAvatarChange }: ProfileModalProps) {
           </div>
 
           <div className="flex shrink-0 flex-col-reverse gap-3 border-t border-[#D8E0E6] bg-white px-5 py-4 sm:flex-row sm:justify-end sm:px-8">
-            <button type="button" onClick={closeIfAvailable} disabled={isSaving} className="min-h-11 rounded-[7px] border border-[#C7D1DA] px-6 text-[13px] font-extrabold text-[#153244] hover:bg-[#F5F7F8] disabled:opacity-50">Cerrar</button>
-            <button type="submit" disabled={!selectedFile || isLoading || isSaving || Boolean(error)} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-[7px] bg-[#153244] px-6 text-[13px] font-extrabold text-white hover:bg-[#0D2433] disabled:cursor-not-allowed disabled:bg-[#AAB4BC]">
+            <button type="button" onClick={closeIfAvailable} disabled={isBusy} className="min-h-11 rounded-[7px] border border-[#C7D1DA] px-6 text-[13px] font-extrabold text-[#153244] hover:bg-[#F5F7F8] disabled:opacity-50">Cerrar</button>
+            <button type="button" onClick={() => void handleSave()} disabled={!selectedFile || isLoading || isBusy || Boolean(error)} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-[7px] bg-[#153244] px-6 text-[13px] font-extrabold text-white hover:bg-[#0D2433] disabled:cursor-not-allowed disabled:bg-[#AAB4BC]">
               {isSaving ? <><AppIcon name="loader" size={18} className="animate-spin" /> Guardando...</> : "Guardar cambios"}
             </button>
           </div>
-        </form>
+        </div>
       </div>
     </div>,
     document.body,

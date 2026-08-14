@@ -40,8 +40,8 @@ export function PersonDetailModal({ person, onClose }: { person: DirectoryPerson
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#061947]/55 px-4 py-6" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="person-detail-title" onKeyDown={handleTrapFocus} className="max-h-[calc(100dvh-48px)] w-full max-w-[640px] overflow-y-auto rounded-[14px] border border-[#E3E8EC] bg-white text-[#153244] shadow-[0_24px_90px_rgba(6,42,67,0.28)]">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#061947]/55 p-3 sm:px-4 sm:py-6" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="person-detail-title" onKeyDown={handleTrapFocus} className="max-h-[calc(100dvh-24px)] w-full max-w-[640px] overflow-x-hidden overflow-y-auto rounded-[14px] border border-[#E3E8EC] bg-white text-[#153244] shadow-[0_24px_90px_rgba(6,42,67,0.28)] sm:max-h-[calc(100dvh-48px)]">
         <div className="flex items-center justify-between border-b border-[#E3E8EC] px-5 py-4 sm:px-6">
           <h2 id="person-detail-title" className="text-[20px] font-extrabold text-[#061947]">Detalle del integrante</h2>
           <button ref={closeButtonRef} type="button" onClick={onClose} className="flex h-11 w-11 items-center justify-center rounded-full hover:bg-[#F5F7F8]" aria-label="Cerrar detalle"><AppIcon name="x" size={22} /></button>
@@ -59,12 +59,12 @@ export function PersonDetailModal({ person, onClose }: { person: DirectoryPerson
             <div className="flex flex-wrap gap-2">{person.linkTypes.length ? person.linkTypes.map((type) => <LinkTypeBadge key={type.id} type={type} />) : "Sin especificar"}</div>
           </DetailSection>
           <DetailSection title="Información de contacto">
-            <div className="grid gap-3 sm:grid-cols-2"><InfoItem icon="phone" label="Celular" value={person.phone} /><InfoItem icon="mail" label="Mail" value={person.email} /></div>
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(min(240px,100%),1fr))] gap-3"><InfoItem icon="phone" label="Celular" value={person.phone} /><InfoItem icon="mail" label="Mail" value={person.email} /></div>
           </DetailSection>
           <DetailSection title="Ubicación"><InfoItem icon="building" label="Edificio GCBA" value={person.building} /></DetailSection>
           {person.cuit !== undefined ? (
             <DetailSection title="Acceso administrativo">
-              <div className="grid gap-3 sm:grid-cols-2">
+              <div className="grid grid-cols-[repeat(auto-fit,minmax(min(240px,100%),1fr))] gap-3">
                 <InfoItem icon="clipboard" label="CUIT" value={person.cuit ?? "Sin especificar"} />
                 <InfoItem icon="usersGroup" label="Rol del sistema" value={person.systemRole === "admin" ? "Administrador" : person.hasAccount ? "Usuario" : "Sin cuenta"} />
                 <InfoItem icon="check" label="Estado" value={person.accountIsActive === false || !person.isActive ? "Inactivo" : "Activo"} />
@@ -88,5 +88,11 @@ function DetailSection({ title, children }: { title: string; children: React.Rea
 }
 
 function InfoItem({ icon, label, value }: { icon: "phone" | "mail" | "building" | "clipboard" | "usersGroup" | "check" | "refresh"; label: string; value: string | null }) {
-  return <div className="grid grid-cols-[20px_1fr] gap-3 rounded-[9px] border border-[#E3E8EC] bg-[#FCFCFC] px-4 py-3"><AppIcon name={icon} size={18} className="text-[#005CB9]" /><div className="min-w-0"><p className="text-[11px] font-bold text-[#5F6B76]">{label}</p><p className="mt-1 break-words text-[13px] font-extrabold leading-tight">{value || "Sin especificar"}</p></div></div>;
+  return <div className="grid min-w-0 grid-cols-[20px_minmax(0,1fr)] gap-3 rounded-[9px] border border-[#E3E8EC] bg-[#FCFCFC] px-4 py-3"><AppIcon name={icon} size={18} className="text-[#005CB9]" /><div className="min-w-0"><p className="text-[11px] font-bold text-[#5F6B76]">{label}</p><p className="mt-1 min-w-0 break-words text-[13px] font-extrabold leading-tight">{icon === "mail" && value ? <BreakableEmail value={value} /> : value || "Sin especificar"}</p></div></div>;
+}
+
+function BreakableEmail({ value }: { value: string }) {
+  return value.split(/([@._+-])/).map((part, index) => (
+    <span key={`${part}-${index}`}>{part}{/[@._+-]/.test(part) ? <wbr /> : null}</span>
+  ));
 }

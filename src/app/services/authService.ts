@@ -85,6 +85,23 @@ export async function changePassword(password: string) {
   }
 }
 
+export async function changePasswordWithCurrentPassword(email: string, currentPassword: string, newPassword: string) {
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email: email.trim(),
+    password: currentPassword,
+  });
+
+  if (error) {
+    if (error.message.toLowerCase().includes("invalid login credentials")) {
+      throw new AppServiceError("La contraseña actual no es correcta.", "INVALID_CURRENT_PASSWORD");
+    }
+    throw toServiceError(error, "No se pudo validar la contraseña actual.");
+  }
+  if (!data.session) throw new AppServiceError("Supabase no devolvió una sesión válida.", "SESSION_MISSING");
+
+  await changePassword(newPassword);
+}
+
 export async function requestPasswordReset(email: string) {
   const redirectTo = `${window.location.origin}/`;
   const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo });
