@@ -464,7 +464,7 @@ function SectionResourceCard({
         </div>
       </div>
       <p className="mt-4 flex-1 text-[14px] font-semibold leading-[1.45] text-[#5F6B76]">{resource.description || "Sin descripción."}</p>
-      {resource.isActive ? <ResourceReactions resourceTitle={resource.title} summary={reactionSummary} onChange={onReaction} /> : null}
+      {resource.isActive ? <ResourceReactions resourceTitle={resource.title} summary={reactionSummary} canViewReactors={isAdmin} onChange={onReaction} /> : null}
       <div className="mt-6 flex flex-wrap items-center gap-2">
         <button type="button" onClick={onOpen} className="inline-flex min-h-11 items-center justify-center rounded-[6px] bg-[#0072BC] px-5 text-[13px] font-extrabold text-white">Abrir recurso</button>
         {resource.files.some((candidate) => candidate.allowDownload) ? <button type="button" onClick={onDownload} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-[6px] px-4 text-[13px] font-extrabold text-[#0072BC]"><AppIcon name="download" size={18} /> Descargar</button> : null}

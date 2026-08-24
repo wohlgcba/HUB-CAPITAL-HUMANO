@@ -1,18 +1,26 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import {
   resourceReactionEmojis,
   type ResourceReaction,
   type ResourceReactionSummary,
 } from "../types/resources";
+import { AppIcon } from "./AppIcon";
 
 type ResourceReactionsProps = {
   resourceTitle: string;
   summary?: ResourceReactionSummary;
+  canViewReactors?: boolean;
   onChange: (reaction: ResourceReaction | null) => Promise<void>;
 };
 
-export function ResourceReactions({ resourceTitle, summary, onChange }: ResourceReactionsProps) {
+export function ResourceReactions({ resourceTitle, summary, canViewReactors = false, onChange }: ResourceReactionsProps) {
   const [pending, setPending] = useState<ResourceReaction | null | undefined>();
+  const [showReactors, setShowReactors] = useState(false);
+  const reactorDetailsId = useId();
+  const reactorGroups = resourceReactionEmojis.flatMap((reaction) => {
+    const actors = summary?.reactors?.[reaction] ?? [];
+    return actors.length > 0 ? [{ reaction, actors }] : [];
+  });
 
   const handleReaction = async (reaction: ResourceReaction) => {
     if (pending !== undefined) return;
@@ -48,6 +56,30 @@ export function ResourceReactions({ resourceTitle, summary, onChange }: Resource
           );
         })}
       </div>
+      {canViewReactors && reactorGroups.length > 0 ? (
+        <div className="mt-2">
+          <button
+            type="button"
+            onClick={() => setShowReactors((visible) => !visible)}
+            aria-expanded={showReactors}
+            aria-controls={reactorDetailsId}
+            className="inline-flex min-h-11 items-center gap-2 text-[12px] font-extrabold text-[#005CB9] underline-offset-4 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0072BC]"
+          >
+            <AppIcon name="users" size={17} />
+            {showReactors ? "Ocultar quién reaccionó" : "Ver quién reaccionó"}
+          </button>
+          {showReactors ? (
+            <ul id={reactorDetailsId} className="space-y-2 border-l-2 border-[#D9E7EF] pl-3 text-[12px] text-[#153244]">
+              {reactorGroups.map(({ reaction, actors }) => (
+                <li key={reaction} className="grid grid-cols-[28px_minmax(0,1fr)] items-start gap-2">
+                  <span className="text-[18px] leading-none" aria-hidden="true">{reaction}</span>
+                  <span className="min-w-0 break-words font-bold leading-[1.4]">{actors.map((actor) => actor.fullName).join(", ")}</span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }

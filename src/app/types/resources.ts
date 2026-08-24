@@ -4,9 +4,15 @@ export const resourceReactionEmojis = ["💖", "👍", "🎉", "👏", "😂", "
 
 export type ResourceReaction = (typeof resourceReactionEmojis)[number];
 
+export type ResourceReactionActor = {
+  profileId: string;
+  fullName: string;
+};
+
 export type ResourceReactionSummary = {
   counts: Partial<Record<ResourceReaction, number>>;
   userReaction: ResourceReaction | null;
+  reactors?: Partial<Record<ResourceReaction, ResourceReactionActor[]>>;
 };
 
 export type ResourceReactionMap = Record<string, ResourceReactionSummary>;

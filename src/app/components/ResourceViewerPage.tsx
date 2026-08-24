@@ -155,7 +155,7 @@ export function ResourceViewerPage() {
           <h1 className="mt-2 text-[24px] font-extrabold leading-tight text-[#153244]">{resource.title}</h1>
           <p className="mt-4 text-[13px] font-semibold leading-relaxed text-[#5F6B76]">{resource.description || "Sin descripción."}</p>
           <p className="mt-4 text-[12px] font-bold text-[#5F6B76]">Publicado el {formatDate(resource.publishedAt)}</p>
-          {resource.isActive ? <ResourceReactions resourceTitle={resource.title} summary={reactionSummary} onChange={handleReaction} /> : null}
+          {resource.isActive ? <ResourceReactions resourceTitle={resource.title} summary={reactionSummary} canViewReactors={isAdmin} onChange={handleReaction} /> : null}
 
           <h2 className="mt-7 text-[13px] font-extrabold uppercase text-[#153244]">Archivos</h2>
           {resource.files.length > 0 ? (

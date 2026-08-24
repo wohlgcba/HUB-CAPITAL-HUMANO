@@ -34,6 +34,17 @@ type ReactionEventRow = {
   metadata: { emoji?: unknown } | null;
 };
 
+type ReactionProfileRow = {
+  id: string;
+  full_name: string;
+};
+
+type ReactionSummary = {
+  counts: Record<string, number>;
+  userReaction: string | null;
+  reactors?: Record<string, Array<{ profileId: string; fullName: string }>>;
+};
+
 class ApiError extends Error {
   constructor(
     message: string,
@@ -99,7 +110,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
       }
       case "get-reactions": {
         const resourceIds = parseResourceIds(body.resourceIds);
-        const summaries = await getReactionSummaries(adminClient, caller.profileId, resourceIds);
+        const summaries = await getReactionSummaries(adminClient, caller, resourceIds);
         return response.status(200).json({ summaries });
       }
       case "set-reaction": {
@@ -126,7 +137,7 @@ export default async function handler(request: VercelRequest, response: VercelRe
           if (insertError) throw new ApiError("No se pudo guardar la reacción.", 500, "REACTION_UPDATE_FAILED");
         }
 
-        const summaries = await getReactionSummaries(adminClient, caller.profileId, [resourceId]);
+        const summaries = await getReactionSummaries(adminClient, caller, [resourceId]);
         return response.status(200).json({ summary: summaries[resourceId] });
       }
     }
@@ -244,7 +255,7 @@ async function requireUploadedObject(adminClient: SupabaseClient, storagePath: s
   }
 }
 
-async function getReactionSummaries(adminClient: SupabaseClient, profileId: string, requestedIds: string[]) {
+async function getReactionSummaries(adminClient: SupabaseClient, caller: Caller, requestedIds: string[]) {
   if (requestedIds.length === 0) return {};
   const { data: resources, error: resourceError } = await adminClient.from("section_resources").select("id,section_id").in("id", requestedIds).eq("is_active", true);
   if (resourceError) throw new ApiError("No se pudieron cargar las reacciones.", 500, "REACTIONS_READ_FAILED");
@@ -265,16 +276,47 @@ async function getReactionSummaries(adminClient: SupabaseClient, profileId: stri
     .in("entity_id", resourceIds);
   if (error) throw new ApiError("No se pudieron cargar las reacciones.", 500, "REACTIONS_READ_FAILED");
 
-  const summaries = Object.fromEntries(resourceIds.map((resourceId) => [resourceId, { counts: {} as Record<string, number>, userReaction: null as string | null }]));
-  for (const event of events as ReactionEventRow[]) {
+  const reactionEvents = (events ?? []) as ReactionEventRow[];
+  const profileNames = caller.role === "admin"
+    ? await getReactionProfileNames(adminClient, reactionEvents)
+    : new Map<string, string>();
+  const summaries = Object.fromEntries(
+    resourceIds.map((resourceId) => [
+      resourceId,
+      {
+        counts: {},
+        userReaction: null,
+        ...(caller.role === "admin" ? { reactors: {} } : {}),
+      } satisfies ReactionSummary,
+    ]),
+  ) as Record<string, ReactionSummary>;
+  for (const event of reactionEvents) {
     if (!event.entity_id || !summaries[event.entity_id]) continue;
     const emoji = event.metadata?.emoji;
     if (typeof emoji !== "string" || !reactionChoices.includes(emoji as (typeof reactionChoices)[number])) continue;
     const summary = summaries[event.entity_id];
     summary.counts[emoji] = (summary.counts[emoji] ?? 0) + 1;
-    if (event.profile_id === profileId) summary.userReaction = emoji;
+    if (event.profile_id === caller.profileId) summary.userReaction = emoji;
+    if (caller.role === "admin" && event.profile_id) {
+      const fullName = profileNames.get(event.profile_id);
+      if (!fullName) continue;
+      const actors = summary.reactors?.[emoji] ?? [];
+      if (!actors.some((actor) => actor.profileId === event.profile_id)) {
+        actors.push({ profileId: event.profile_id, fullName });
+        actors.sort((first, second) => first.fullName.localeCompare(second.fullName, "es-AR"));
+      }
+      summary.reactors![emoji] = actors;
+    }
   }
   return summaries;
+}
+
+async function getReactionProfileNames(adminClient: SupabaseClient, events: ReactionEventRow[]) {
+  const profileIds = [...new Set(events.flatMap((event) => event.profile_id ? [event.profile_id] : []))];
+  if (profileIds.length === 0) return new Map<string, string>();
+  const { data, error } = await adminClient.from("profiles").select("id,full_name").in("id", profileIds);
+  if (error) throw new ApiError("No se pudieron identificar los autores de las reacciones.", 500, "REACTION_ACTORS_READ_FAILED");
+  return new Map((data as ReactionProfileRow[]).map((profile) => [profile.id, profile.full_name]));
 }
 
 function parseBody(body: unknown): RequestBody {
