@@ -4,15 +4,18 @@ import { toast as notify } from "sonner";
 import { useAuth } from "../context/AuthContext";
 import { formatFileKind, formatFileSize } from "../lib/formatters";
 import { logAuditEvent } from "../services/auditService";
-import { deleteResource, getResourceDownloadUrl, listAdminSectionResources, listSectionResources } from "../services/resourceService";
+import { getResourceReactions, setResourceReaction } from "../services/communityService";
+import { deleteResource, getResourceDownloadUrl, listAdminSectionResources, listSectionResources, publishResource } from "../services/resourceService";
 import { getErrorMessage } from "../services/serviceError";
 import { deleteSection, getAdminSectionBySlug, getSectionBySlug } from "../services/sectionService";
 import type { HubSection } from "../types/hub";
-import type { ResourceFileKind, SectionResource } from "../types/resources";
+import type { ResourceFileKind, ResourceReaction, ResourceReactionMap, ResourceReactionSummary, SectionResource } from "../types/resources";
 import type { AppIconName } from "./AppIcon";
 import { AppIcon } from "./AppIcon";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { ResourceFormDialog } from "./ResourceFormDialog";
+import { ResourceReactions } from "./ResourceReactions";
+import { ResourceSubmissionDialog } from "./ResourceSubmissionDialog";
 import { SectionFormDialog } from "./SectionFormDialog";
 
 const bannerStyles = {
@@ -51,10 +54,14 @@ export function SectionDetailPage() {
   const [toast, setToast] = useState("");
   const [sectionFormOpen, setSectionFormOpen] = useState(false);
   const [resourceFormOpen, setResourceFormOpen] = useState(false);
+  const [submissionFormOpen, setSubmissionFormOpen] = useState(false);
   const [editingResource, setEditingResource] = useState<SectionResource | null>(null);
   const [deletingResource, setDeletingResource] = useState<SectionResource | null>(null);
+  const [publishingResource, setPublishingResource] = useState<SectionResource | null>(null);
+  const [reactionSummaries, setReactionSummaries] = useState<ResourceReactionMap>({});
   const [isSectionDeleteOpen, setIsSectionDeleteOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isPublishing, setIsPublishing] = useState(false);
   const [refreshVersion, setRefreshVersion] = useState(0);
 
   useEffect(() => {
@@ -63,6 +70,7 @@ export function SectionDetailPage() {
     setIsLoading(true);
     setError("");
     setNotFound(false);
+    setReactionSummaries({});
 
     if (!slug) {
       setNotFound(true);
@@ -80,9 +88,11 @@ export function SectionDetailPage() {
           return;
         }
         const nextResources = await (isAdmin ? listAdminSectionResources(nextSection.id) : listSectionResources(nextSection.id));
+        const nextReactions = await getResourceReactions(nextResources.filter((resource) => resource.isActive).map((resource) => resource.id)).catch(() => ({}));
         if (cancelled) return;
         setSection(nextSection);
         setResources(nextResources);
+        setReactionSummaries(nextReactions);
         void logAuditEvent("section_view", "section", nextSection.id);
       })
       .catch((loadError: unknown) => {
@@ -133,6 +143,37 @@ export function SectionDetailPage() {
     }
   };
 
+  const handlePublishResource = async () => {
+    if (!publishingResource) return;
+    setIsPublishing(true);
+    try {
+      await publishResource(publishingResource.id);
+      void logAuditEvent("resource_published", "resource", publishingResource.id);
+      notify.success("Recurso publicado", {
+        description: "La propuesta ya está visible para todos los integrantes.",
+      });
+      setPublishingResource(null);
+      setRefreshVersion((version) => version + 1);
+    } catch (publishError) {
+      notify.error("No se pudo publicar el recurso", {
+        description: getErrorMessage(publishError, "Intentá nuevamente."),
+      });
+    } finally {
+      setIsPublishing(false);
+    }
+  };
+
+  const handleReaction = async (resourceId: string, reaction: ResourceReaction | null) => {
+    try {
+      const summary = await setResourceReaction(resourceId, reaction);
+      setReactionSummaries((current) => ({ ...current, [resourceId]: summary }));
+    } catch (reactionError) {
+      notify.error("No se pudo guardar la reacción", {
+        description: getErrorMessage(reactionError, "Intentá nuevamente."),
+      });
+    }
+  };
+
   const handleDownload = async (resource: SectionResource) => {
     const file = resource.files.find((candidate) => candidate.allowDownload);
     if (!file) return;
@@ -153,6 +194,7 @@ export function SectionDetailPage() {
   if (isLoading) return <SectionLoading />;
   if (notFound) return <SectionMessage title="Sección no encontrada" message="La sección solicitada no está publicada dentro del HUB." />;
   if (error || !section) return <SectionMessage title="No pudimos cargar la sección" message={error || "Ocurrió un error inesperado."} />;
+  const isNovedades = section.slug === "novedades";
 
   return (
     <main className="mx-auto flex w-screen max-w-[1888px] flex-col gap-5 px-4 py-[18px] sm:px-6 lg:px-8">
@@ -164,7 +206,17 @@ export function SectionDetailPage() {
           onAddContent={() => { setEditingResource(null); setResourceFormOpen(true); }}
           onDeleteSection={() => setIsSectionDeleteOpen(true)}
           onBack={() => navigate("/")}
+          canSubmit={isNovedades && !isAdmin}
+          onSubmitContent={() => setSubmissionFormOpen(true)}
         />
+
+        {isNovedades ? (
+          <p className="rounded-[9px] border border-[#9BDCE4] bg-[#EAF9FB] px-4 py-3 text-[13px] font-bold leading-relaxed text-[#15566A]">
+            {isAdmin
+              ? "Los recursos pendientes solo son visibles en administración. Revisalos antes de publicarlos."
+              : "Podés proponer un recurso para esta sección. Se publicará después de la revisión de un administrador."}
+          </p>
+        ) : null}
 
         <section className="flex flex-col gap-4" aria-labelledby="section-resources-title">
           <h2 id="section-resources-title" className="text-[clamp(22px,2vw,30px)] font-extrabold text-[#153244]">
@@ -179,6 +231,10 @@ export function SectionDetailPage() {
                   onOpen={() => navigate(`/recursos/${resource.id}`)}
                   onDownload={() => void handleDownload(resource)}
                   isAdmin={isAdmin}
+                  isSubmissionSection={isNovedades}
+                  reactionSummary={reactionSummaries[resource.id]}
+                  onReaction={(reaction) => handleReaction(resource.id, reaction)}
+                  onPublish={() => setPublishingResource(resource)}
                   onEdit={() => { setEditingResource(resource); setResourceFormOpen(true); }}
                   onDelete={() => setDeletingResource(resource)}
                 />
@@ -233,16 +289,35 @@ export function SectionDetailPage() {
             onConfirm={() => void handleDeleteSection()}
           />
           <ConfirmDialog
+            open={Boolean(publishingResource)}
+            title="¿Publicar este recurso?"
+            description={isNovedades ? "La propuesta quedará visible para todos los integrantes y generará una novedad." : "El recurso quedará visible para todos los integrantes."}
+            details={publishingResource ? <strong>{publishingResource.title}</strong> : null}
+            confirmLabel="Publicar recurso"
+            loading={isPublishing}
+            variant="primary"
+            onCancel={() => setPublishingResource(null)}
+            onConfirm={() => void handlePublishResource()}
+          />
+          <ConfirmDialog
             open={Boolean(deletingResource)}
-            title="¿Eliminar este recurso?"
-            description="Esta acción quitará el recurso de la sección visible para los usuarios."
+            title={isNovedades && deletingResource?.isActive === false ? "¿Rechazar esta propuesta?" : "¿Eliminar este recurso?"}
+            description={isNovedades && deletingResource?.isActive === false ? "La propuesta y su archivo serán eliminados sin publicarse." : "Esta acción quitará el recurso de la sección visible para los usuarios."}
             details={deletingResource ? <><strong>{deletingResource.title}</strong><span className="mt-1 block text-[#5F6B76]">Sección: {section.title} · Archivo: {deletingResource.files[0]?.fileName || "Sin archivo"}</span></> : null}
-            confirmLabel="Eliminar recurso"
+            confirmLabel={isNovedades && deletingResource?.isActive === false ? "Rechazar propuesta" : "Eliminar recurso"}
             loading={isDeleting}
             onCancel={() => setDeletingResource(null)}
             onConfirm={() => void handleDeleteResource()}
           />
         </>
+      ) : null}
+      {!isAdmin && isNovedades ? (
+        <ResourceSubmissionDialog
+          open={submissionFormOpen}
+          sectionId={section.id}
+          onCancel={() => setSubmissionFormOpen(false)}
+          onSubmitted={() => setSubmissionFormOpen(false)}
+        />
       ) : null}
     </main>
   );
@@ -289,6 +364,8 @@ function SectionBanner({
   onAddContent,
   onDeleteSection,
   onBack,
+  canSubmit,
+  onSubmitContent,
 }: {
   section: HubSection;
   isAdmin: boolean;
@@ -296,6 +373,8 @@ function SectionBanner({
   onAddContent: () => void;
   onDeleteSection: () => void;
   onBack: () => void;
+  canSubmit: boolean;
+  onSubmitContent: () => void;
 }) {
   const useYellow = section.category.toLocaleLowerCase("es-AR").includes("programa");
   const variant = useYellow ? bannerStyles.yellow : bannerStyles.cyan;
@@ -317,6 +396,7 @@ function SectionBanner({
               <BannerAction onClick={onDeleteSection} icon="trash" label="Eliminar sección" tone="danger" />
             </>
           ) : null}
+          {canSubmit ? <BannerAction onClick={onSubmitContent} icon="upload" label="Proponer recurso" tone="primary" /> : null}
           <BannerAction onClick={onBack} icon="chevronLeft" label="Volver al HUB" tone="light" />
         </div>
       </div>
@@ -340,10 +420,33 @@ function BannerAction({ onClick, icon, label, tone }: { onClick: () => void; ico
   );
 }
 
-function SectionResourceCard({ resource, onOpen, onDownload, isAdmin, onEdit, onDelete }: { resource: SectionResource; onOpen: () => void; onDownload: () => void; isAdmin: boolean; onEdit: () => void; onDelete: () => void }) {
+function SectionResourceCard({
+  resource,
+  onOpen,
+  onDownload,
+  isAdmin,
+  isSubmissionSection,
+  reactionSummary,
+  onReaction,
+  onPublish,
+  onEdit,
+  onDelete,
+}: {
+  resource: SectionResource;
+  onOpen: () => void;
+  onDownload: () => void;
+  isAdmin: boolean;
+  isSubmissionSection: boolean;
+  reactionSummary?: ResourceReactionSummary;
+  onReaction: (reaction: ResourceReaction | null) => Promise<void>;
+  onPublish: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
   const file = resource.files[0];
   const kind = file?.fileKind ?? "other";
   const style = formatStyles[kind];
+  const statusLabel = resource.isActive ? "Publicado" : isSubmissionSection ? "Pendiente de revisión" : "Borrador";
   return (
     <article className="flex h-full min-h-[245px] flex-col rounded-[12px] border border-[#E3E8EC] bg-white p-5 shadow-[0_2px_10px_rgba(21,50,68,0.06)]">
       <div className="flex items-start gap-4">
@@ -355,17 +458,58 @@ function SectionResourceCard({ resource, onOpen, onDownload, isAdmin, onEdit, on
             <span className={`rounded-[5px] px-2 py-1 text-[12px] font-extrabold leading-none ${style.labelClass}`}>{file ? formatFileKind(kind) : "SIN ARCHIVO"}</span>
             {file ? <span className="text-[12px] font-bold text-[#5F6B76]">{formatFileSize(file.fileSizeBytes)}</span> : null}
             {resource.isFeatured ? <span className="rounded-[5px] bg-[#FFCC00] px-2 py-1 text-[12px] font-extrabold">Destacado</span> : null}
-            {isAdmin ? <span className={`rounded-[5px] px-2 py-1 text-[12px] font-extrabold ${resource.isActive ? "bg-[#DDF8F5] text-[#006F73]" : "bg-[#FFF1C2] text-[#735B00]"}`}>{resource.isActive ? "Publicado" : "Borrador"}</span> : null}
+            {isAdmin ? <span className={`rounded-[5px] px-2 py-1 text-[12px] font-extrabold ${resource.isActive ? "bg-[#DDF8F5] text-[#006F73]" : "bg-[#FFF1C2] text-[#735B00]"}`}>{statusLabel}</span> : null}
           </div>
           <h3 className="mt-3 text-[20px] font-extrabold leading-tight text-[#153244]">{resource.title}</h3>
         </div>
       </div>
       <p className="mt-4 flex-1 text-[14px] font-semibold leading-[1.45] text-[#5F6B76]">{resource.description || "Sin descripción."}</p>
+      {resource.isActive ? <ResourceReactions resourceTitle={resource.title} summary={reactionSummary} onChange={onReaction} /> : null}
       <div className="mt-6 flex flex-wrap items-center gap-2">
         <button type="button" onClick={onOpen} className="inline-flex min-h-11 items-center justify-center rounded-[6px] bg-[#0072BC] px-5 text-[13px] font-extrabold text-white">Abrir recurso</button>
         {resource.files.some((candidate) => candidate.allowDownload) ? <button type="button" onClick={onDownload} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-[6px] px-4 text-[13px] font-extrabold text-[#0072BC]"><AppIcon name="download" size={18} /> Descargar</button> : null}
-        {isAdmin ? <><button type="button" onClick={onEdit} className="ml-auto inline-flex min-h-11 items-center justify-center gap-2 rounded-[6px] border border-[#0072BC] px-4 text-[13px] font-extrabold text-[#0072BC]"><AppIcon name="edit" size={17} /> Editar</button><button type="button" onClick={onDelete} aria-label={`Eliminar ${resource.title}`} className="flex h-11 w-11 items-center justify-center rounded-[6px] border border-[#E3B0B0] text-[#B52F2F]"><AppIcon name="trash" size={18} /></button></> : null}
+        {isAdmin ? (
+          <AdminResourceActions
+            resource={resource}
+            isSubmissionSection={isSubmissionSection}
+            onPublish={onPublish}
+            onEdit={onEdit}
+            onDelete={onDelete}
+          />
+        ) : null}
       </div>
     </article>
+  );
+}
+
+function AdminResourceActions({
+  resource,
+  isSubmissionSection,
+  onPublish,
+  onEdit,
+  onDelete,
+}: {
+  resource: SectionResource;
+  isSubmissionSection: boolean;
+  onPublish: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  const isPendingSubmission = !resource.isActive && isSubmissionSection;
+  return (
+    <>
+      {!resource.isActive ? (
+        <button type="button" onClick={onPublish} className="ml-auto inline-flex min-h-11 items-center justify-center gap-2 rounded-[6px] bg-[#0072BC] px-4 text-[13px] font-extrabold text-white">
+          <AppIcon name="check" size={17} /> Publicar
+        </button>
+      ) : null}
+      <button type="button" onClick={onEdit} className={`${resource.isActive ? "ml-auto" : ""} inline-flex min-h-11 items-center justify-center gap-2 rounded-[6px] border border-[#0072BC] px-4 text-[13px] font-extrabold text-[#0072BC]`}>
+        <AppIcon name="edit" size={17} /> Editar
+      </button>
+      <button type="button" onClick={onDelete} aria-label={`${isPendingSubmission ? "Rechazar" : "Eliminar"} ${resource.title}`} className={`flex h-11 items-center justify-center gap-1.5 rounded-[6px] border border-[#E3B0B0] px-3 text-[13px] font-extrabold text-[#B52F2F] ${isPendingSubmission ? "w-auto" : "w-11"}`}>
+        <AppIcon name="trash" size={18} />
+        {isPendingSubmission ? "Rechazar" : null}
+      </button>
+    </>
   );
 }

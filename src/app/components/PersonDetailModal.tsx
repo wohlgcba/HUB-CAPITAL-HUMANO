@@ -11,6 +11,7 @@ const focusableSelector =
 export function PersonDetailModal({ person, onClose }: { person: DirectoryPersonDetail; onClose: () => void }) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const whatsappUrl = getWhatsAppUrl(person.phone);
 
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
@@ -59,7 +60,7 @@ export function PersonDetailModal({ person, onClose }: { person: DirectoryPerson
             <div className="flex flex-wrap gap-2">{person.linkTypes.length ? person.linkTypes.map((type) => <LinkTypeBadge key={type.id} type={type} />) : "Sin especificar"}</div>
           </DetailSection>
           <DetailSection title="Información de contacto">
-            <div className="grid grid-cols-[repeat(auto-fit,minmax(min(240px,100%),1fr))] gap-3"><InfoItem icon="phone" label="Celular" value={person.phone} /><InfoItem icon="mail" label="Mail" value={person.email} /></div>
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(min(240px,100%),1fr))] gap-3"><InfoItem icon="phone" label="Celular" value={person.phone} href={whatsappUrl} /><InfoItem icon="mail" label="Mail" value={person.email} href={person.email ? `mailto:${person.email}` : null} /></div>
           </DetailSection>
           <DetailSection title="Ubicación"><InfoItem icon="building" label="Edificio GCBA" value={person.building} /></DetailSection>
           {person.cuit !== undefined ? (
@@ -76,7 +77,8 @@ export function PersonDetailModal({ person, onClose }: { person: DirectoryPerson
         </div>
         <div className="flex flex-col-reverse gap-3 border-t border-[#E3E8EC] px-5 py-4 sm:flex-row sm:justify-end sm:px-6">
           <button type="button" onClick={onClose} className="min-h-11 rounded-[7px] border border-[#C7D1DA] px-5 text-[13px] font-extrabold">Cerrar</button>
-          {person.email ? <a href={`mailto:${person.email}`} className="flex min-h-11 items-center justify-center rounded-[7px] bg-[#153244] px-5 text-[13px] font-extrabold text-white">Enviar correo</a> : null}
+          {whatsappUrl ? <a href={whatsappUrl} target="_blank" rel="noreferrer" className="flex min-h-11 items-center justify-center gap-2 rounded-[7px] border border-[#148B5A] px-5 text-[13px] font-extrabold text-[#0B7549]"><AppIcon name="whatsapp" size={19} /> WhatsApp</a> : null}
+          {person.email ? <a href={`mailto:${person.email}`} className="flex min-h-11 items-center justify-center gap-2 rounded-[7px] bg-[#153244] px-5 text-[13px] font-extrabold text-white"><AppIcon name="mail" size={18} /> Enviar correo</a> : null}
         </div>
       </div>
     </div>
@@ -87,12 +89,48 @@ function DetailSection({ title, children }: { title: string; children: React.Rea
   return <section className="mt-6"><h4 className="mb-3 text-[13px] font-extrabold uppercase tracking-[0.03em]">{title}</h4>{children}</section>;
 }
 
-function InfoItem({ icon, label, value }: { icon: "phone" | "mail" | "building" | "clipboard" | "usersGroup" | "check" | "refresh"; label: string; value: string | null }) {
-  return <div className="grid min-w-0 grid-cols-[20px_minmax(0,1fr)] gap-3 rounded-[9px] border border-[#E3E8EC] bg-[#FCFCFC] px-4 py-3"><AppIcon name={icon} size={18} className="text-[#005CB9]" /><div className="min-w-0"><p className="text-[11px] font-bold text-[#5F6B76]">{label}</p><p className="mt-1 min-w-0 break-words text-[13px] font-extrabold leading-tight">{icon === "mail" && value ? <BreakableEmail value={value} /> : value || "Sin especificar"}</p></div></div>;
+function InfoItem({
+  icon,
+  label,
+  value,
+  href = null,
+}: {
+  icon: "phone" | "mail" | "building" | "clipboard" | "usersGroup" | "check" | "refresh";
+  label: string;
+  value: string | null;
+  href?: string | null;
+}) {
+  const content = icon === "mail" && value ? <BreakableEmail value={value} /> : value || "Sin especificar";
+  const external = href?.startsWith("https:") ?? false;
+  return (
+    <div className="grid min-w-0 grid-cols-[20px_minmax(0,1fr)] gap-3 rounded-[9px] border border-[#E3E8EC] bg-[#FCFCFC] px-4 py-3">
+      <AppIcon name={icon} size={18} className="text-[#005CB9]" />
+      <div className="min-w-0">
+        <p className="text-[11px] font-bold text-[#5F6B76]">{label}</p>
+        <p className="mt-1 min-w-0 break-words text-[13px] font-extrabold leading-tight">
+          {href && value ? (
+            <a href={href} target={external ? "_blank" : undefined} rel={external ? "noreferrer" : undefined} className="text-[#005CB9] underline decoration-[#8ABFDB] underline-offset-2">
+              {content}
+            </a>
+          ) : content}
+        </p>
+      </div>
+    </div>
+  );
 }
 
 function BreakableEmail({ value }: { value: string }) {
   return value.split(/([@._+-])/).map((part, index) => (
     <span key={`${part}-${index}`}>{part}{/[@._+-]/.test(part) ? <wbr /> : null}</span>
   ));
+}
+
+function getWhatsAppUrl(phone: string | null) {
+  if (!phone) return null;
+  let digits = phone.replace(/\D/g, "");
+  if (digits.startsWith("00")) digits = digits.slice(2);
+  if (digits.startsWith("549") && digits.length === 13) return `https://wa.me/${digits}`;
+  if (digits.startsWith("54") && digits.length === 12) return `https://wa.me/549${digits.slice(2)}`;
+  if (digits.startsWith("0")) digits = digits.slice(1);
+  return digits.length === 10 ? `https://wa.me/549${digits}` : null;
 }

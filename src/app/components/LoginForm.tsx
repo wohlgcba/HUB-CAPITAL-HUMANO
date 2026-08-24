@@ -145,20 +145,6 @@ export function LoginForm() {
           </p>
         )}
 
-        <div className="my-6 grid grid-cols-[1fr_auto_1fr] items-center gap-4 text-[13px] font-bold text-[#8793A0]">
-          <span className="h-px bg-[#E3E8EC]" />
-          o
-          <span className="h-px bg-[#E3E8EC]" />
-        </div>
-
-        <button
-          type="button"
-          disabled
-          className="flex h-14 w-full cursor-not-allowed items-center justify-center rounded-[8px] border border-[#C7D1DA] bg-white text-[14px] font-extrabold text-[#5F6B76] opacity-65"
-        >
-          Ingresar con SSO del GCBA
-        </button>
-
         {message && (
           <p className="mt-5 rounded-[8px] border border-[#8DE2D6] bg-[#DDF8F5] px-4 py-3 text-center text-[13px] font-bold text-[#153244]">
             {message}

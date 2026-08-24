@@ -1,5 +1,16 @@
 export type ResourceFileKind = "pdf" | "word" | "powerpoint" | "spreadsheet" | "image" | "other";
 
+export const resourceReactionEmojis = ["💖", "👍", "🎉", "👏", "😂", "😮", "😢", "🤔", "👎"] as const;
+
+export type ResourceReaction = (typeof resourceReactionEmojis)[number];
+
+export type ResourceReactionSummary = {
+  counts: Partial<Record<ResourceReaction, number>>;
+  userReaction: ResourceReaction | null;
+};
+
+export type ResourceReactionMap = Record<string, ResourceReactionSummary>;
+
 export type ResourceFile = {
   id: string;
   resourceId: string;

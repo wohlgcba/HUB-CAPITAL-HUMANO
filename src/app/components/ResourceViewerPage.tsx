@@ -3,10 +3,12 @@ import { useNavigate, useParams } from "react-router";
 import { useAuth } from "../context/AuthContext";
 import { formatDate, formatFileKind, formatFileSize } from "../lib/formatters";
 import { logAuditEvent } from "../services/auditService";
+import { getResourceReactions, setResourceReaction } from "../services/communityService";
 import { getAdminResourceById, getResourceById, getResourceDownloadUrl } from "../services/resourceService";
 import { getErrorMessage } from "../services/serviceError";
-import type { ResourceFile, SectionResource } from "../types/resources";
+import type { ResourceFile, ResourceReaction, ResourceReactionSummary, SectionResource } from "../types/resources";
 import { AppIcon } from "./AppIcon";
+import { ResourceReactions } from "./ResourceReactions";
 
 export function ResourceViewerPage() {
   const { resourceId } = useParams();
@@ -19,6 +21,7 @@ export function ResourceViewerPage() {
   const [notFound, setNotFound] = useState(false);
   const [error, setError] = useState("");
   const [actionError, setActionError] = useState("");
+  const [reactionSummary, setReactionSummary] = useState<ResourceReactionSummary>();
   const [isFullscreen, setIsFullscreen] = useState(false);
   const viewerRef = useRef<HTMLElement>(null);
 
@@ -27,6 +30,7 @@ export function ResourceViewerPage() {
     setIsLoading(true);
     setNotFound(false);
     setError("");
+    setReactionSummary(undefined);
 
     if (!resourceId) {
       setNotFound(true);
@@ -45,6 +49,11 @@ export function ResourceViewerPage() {
         }
         setResource(nextResource);
         setSelectedFileId(nextResource.files[0]?.id ?? "");
+        if (nextResource.isActive) {
+          void getResourceReactions([nextResource.id]).then((summaries) => {
+            if (!cancelled) setReactionSummary(summaries[nextResource.id]);
+          }).catch(() => undefined);
+        }
         void logAuditEvent("resource_view", "resource", nextResource.id);
       })
       .catch((loadError: unknown) => {
@@ -106,6 +115,16 @@ export function ResourceViewerPage() {
     }
   };
 
+  const handleReaction = async (reaction: ResourceReaction | null) => {
+    if (!resource) return;
+    setActionError("");
+    try {
+      setReactionSummary(await setResourceReaction(resource.id, reaction));
+    } catch (reactionError) {
+      setActionError(getErrorMessage(reactionError, "No se pudo guardar la reacción."));
+    }
+  };
+
   if (isLoading) {
     return <div className="mx-auto h-[560px] w-full max-w-[1400px] animate-pulse bg-[#E8EEF2]" aria-label="Cargando recurso" />;
   }
@@ -136,6 +155,7 @@ export function ResourceViewerPage() {
           <h1 className="mt-2 text-[24px] font-extrabold leading-tight text-[#153244]">{resource.title}</h1>
           <p className="mt-4 text-[13px] font-semibold leading-relaxed text-[#5F6B76]">{resource.description || "Sin descripción."}</p>
           <p className="mt-4 text-[12px] font-bold text-[#5F6B76]">Publicado el {formatDate(resource.publishedAt)}</p>
+          {resource.isActive ? <ResourceReactions resourceTitle={resource.title} summary={reactionSummary} onChange={handleReaction} /> : null}
 
           <h2 className="mt-7 text-[13px] font-extrabold uppercase text-[#153244]">Archivos</h2>
           {resource.files.length > 0 ? (

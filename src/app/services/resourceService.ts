@@ -244,9 +244,31 @@ export async function updateResource(resource: SectionResource, input: ResourceI
   return updated;
 }
 
+export async function publishResource(resourceId: string): Promise<SectionResource> {
+  const { error } = await supabase
+    .from("section_resources")
+    .update({ is_active: true, published_at: new Date().toISOString() })
+    .eq("id", resourceId);
+  if (error) throw toServiceError(error, "No se pudo publicar el recurso.");
+
+  await supabase
+    .from("notifications")
+    .update({ is_active: false })
+    .eq("source_key", `resource:${resourceId}:submitted`);
+
+  const resource = await getResourceByIdInternal(resourceId, true);
+  if (!resource) throw new Error("El recurso se publicó, pero no pudo recuperarse.");
+  return resource;
+}
+
 export async function deleteResource(resource: SectionResource) {
   const { error } = await supabase.from("section_resources").delete().eq("id", resource.id);
   if (error) throw toServiceError(error, "No se pudo eliminar el recurso.");
+
+  await supabase
+    .from("notifications")
+    .update({ is_active: false })
+    .eq("source_key", `resource:${resource.id}:submitted`);
 
   const storageObjects = [
     ...(resource.coverImagePath ? [{ bucket: "resource-covers", path: resource.coverImagePath }] : []),

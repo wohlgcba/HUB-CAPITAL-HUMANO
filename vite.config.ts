@@ -1,11 +1,14 @@
 import { defineConfig, loadEnv, type Plugin } from 'vite'
 import path from 'path'
+import { fileURLToPath } from 'node:url'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import adminUsersHandler from './api/admin-users'
+import communityHandler from './api/community'
 import directoryAvatarsHandler from './api/directory-avatars'
 
+const rootDirectory = path.dirname(fileURLToPath(import.meta.url))
 
 function figmaAssetResolver() {
   return {
@@ -13,7 +16,7 @@ function figmaAssetResolver() {
     resolveId(id) {
       if (id.startsWith('figma:asset/')) {
         const filename = id.replace('figma:asset/', '')
-        return path.resolve(__dirname, 'src/assets', filename)
+        return path.resolve(rootDirectory, 'src/assets', filename)
       }
     },
   }
@@ -22,6 +25,7 @@ function figmaAssetResolver() {
 function localApiFunctions(): Plugin {
   const handlers = new Map([
     ['/api/admin-users', adminUsersHandler],
+    ['/api/community', communityHandler],
     ['/api/directory-avatars', directoryAvatarsHandler],
   ])
 
@@ -92,7 +96,7 @@ export default defineConfig(({ mode }) => {
   resolve: {
     alias: {
       // Alias @ to the src directory
-      '@': path.resolve(__dirname, './src'),
+      '@': path.resolve(rootDirectory, './src'),
     },
   },
 

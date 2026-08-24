@@ -1,5 +1,6 @@
 import {
   IconBell,
+  IconBrandWhatsapp,
   IconAdjustmentsHorizontal,
   IconAlertTriangle,
   IconBuilding,
@@ -101,6 +102,7 @@ const icons = {
   userPlus: IconUserPlus,
   users: IconUsers,
   usersGroup: IconUsersGroup,
+  whatsapp: IconBrandWhatsapp,
   x: IconX,
 };
 
