@@ -100,10 +100,10 @@ function ImageCropDialog({ source, onCancel, onConfirm }: { source: { file: File
     }
   };
 
-  return createPortal(<div className="fixed inset-0 z-[260] flex items-center justify-center bg-[#061947]/70 p-3 sm:p-5" onMouseDown={(event) => { if (event.target === event.currentTarget && !saving) onCancel(); }}>
-    <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="crop-title" className="w-full max-w-[820px] overflow-hidden rounded-[14px] border border-[#D8E0E6] bg-white text-[#153244] shadow-[0_24px_90px_rgba(6,42,67,0.35)]">
-      <header className="flex items-center justify-between border-b border-[#D8E0E6] px-5 py-4 sm:px-6"><div><h2 id="crop-title" className="text-[21px] font-extrabold text-[#061947]">Encuadrar portada</h2><p className="mt-1 text-[12px] font-semibold text-[#5F6B76]">Arrastrá la imagen y ajustá el zoom para elegir el enfoque.</p></div><button type="button" onClick={onCancel} disabled={saving} aria-label="Cerrar editor" className="flex h-11 w-11 items-center justify-center rounded-full border border-[#C7D1DA]"><AppIcon name="x" size={21} /></button></header>
-      <div className="p-5 sm:p-6">
+  return createPortal(<div className="fixed inset-0 z-[260] flex items-center justify-center overflow-y-auto bg-[#061947]/70 p-3 sm:p-5" onMouseDown={(event) => { if (event.target === event.currentTarget && !saving) onCancel(); }}>
+    <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="crop-title" className="flex max-h-[calc(100dvh-24px)] w-full max-w-[820px] flex-col overflow-hidden rounded-[14px] border border-[#D8E0E6] bg-white text-[#153244] shadow-[0_24px_90px_rgba(6,42,67,0.35)] sm:max-h-[calc(100dvh-40px)]">
+      <header className="flex shrink-0 items-center justify-between border-b border-[#D8E0E6] px-5 py-4 sm:px-6"><div><h2 id="crop-title" className="text-[21px] font-extrabold text-[#061947]">Encuadrar portada</h2><p className="mt-1 text-[12px] font-semibold text-[#5F6B76]">Arrastrá la imagen y ajustá el zoom para elegir el enfoque.</p></div><button type="button" onClick={onCancel} disabled={saving} aria-label="Cerrar editor" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[#C7D1DA]"><AppIcon name="x" size={21} /></button></header>
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6">
         <div onPointerDown={startDrag} onPointerMove={moveDrag} onPointerUp={() => { dragRef.current = null; }} className="relative aspect-[16/9] w-full touch-none cursor-move overflow-hidden rounded-[8px] bg-[#153244] select-none">
           <img ref={imageRef} src={source.url} alt="Imagen a encuadrar" draggable={false} className="pointer-events-none h-full w-full object-cover" style={{ objectPosition: `${position.x}% ${position.y}%`, transform: `scale(${zoom})`, transformOrigin: `${position.x}% ${position.y}%` }} />
           <div className="pointer-events-none absolute inset-0 border-[1px] border-white/60 shadow-[inset_0_0_0_999px_rgba(6,25,71,0.06)]" />
@@ -113,7 +113,7 @@ function ImageCropDialog({ source, onCancel, onConfirm }: { source: { file: File
           <button type="button" onClick={() => { setZoom(1); setPosition({ x: 50, y: 50 }); }} className="min-h-11 rounded-[7px] border border-[#C7D1DA] px-4 text-[12px] font-extrabold">Centrar</button>
         </div>
       </div>
-      <footer className="flex flex-col-reverse gap-3 border-t border-[#D8E0E6] px-5 py-4 sm:flex-row sm:justify-end sm:px-6"><button type="button" onClick={onCancel} disabled={saving} className="min-h-11 rounded-[7px] border border-[#C7D1DA] px-5 text-[13px] font-extrabold">Cancelar</button><button type="button" onClick={() => void save()} disabled={saving} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-[7px] bg-[#0072BC] px-5 text-[13px] font-extrabold text-white disabled:opacity-60">{saving ? <AppIcon name="loader" size={17} className="animate-spin" /> : <AppIcon name="check" size={17} />} Usar portada</button></footer>
+      <footer className="flex shrink-0 flex-col-reverse gap-3 border-t border-[#D8E0E6] bg-white px-5 py-4 sm:flex-row sm:justify-end sm:px-6"><button type="button" onClick={onCancel} disabled={saving} className="min-h-11 rounded-[7px] border border-[#C7D1DA] px-5 text-[13px] font-extrabold">Cancelar</button><button type="button" onClick={() => void save()} disabled={saving} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-[7px] bg-[#0072BC] px-5 text-[13px] font-extrabold text-white disabled:opacity-60">{saving ? <AppIcon name="loader" size={17} className="animate-spin" /> : <AppIcon name="check" size={17} />} Usar portada</button></footer>
     </div>
   </div>, document.body);
 }
