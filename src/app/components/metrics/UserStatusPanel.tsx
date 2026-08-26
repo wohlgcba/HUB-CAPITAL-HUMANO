@@ -1,5 +1,5 @@
 import { IconClock, IconTrendingUp, IconUserOff, IconUsersGroup } from "@tabler/icons-react";
-import { lowActivityUsers, userStatusStats } from "../../data/adminMetricsDemo";
+import type { LowActivityUser, UserStatusMetric } from "../../types/metrics";
 import { MetricsPanel } from "./MetricsPanel";
 
 const toneClasses = {
@@ -16,11 +16,11 @@ const iconByType = {
   inactive: IconUserOff,
 };
 
-export function UserStatusPanel() {
+export function UserStatusPanel({ stats, lowActivityUsers }: { stats: UserStatusMetric[]; lowActivityUsers: LowActivityUser[] }) {
   return (
     <MetricsPanel title="Estado de usuarios" actionLabel="Ver todos los usuarios">
       <div className="mt-3 grid gap-2 sm:grid-cols-2">
-        {userStatusStats.map((stat) => {
+        {stats.map((stat) => {
           const Icon = iconByType[stat.icon];
           return (
             <article key={stat.label} className="flex min-h-[66px] items-center gap-3 rounded-[7px] border border-[#E1E8ED] px-3 py-2.5">
@@ -38,6 +38,7 @@ export function UserStatusPanel() {
             {lowActivityUsers.map((user) => (
               <tr key={user.name} className="border-b border-[#E8EDF1] text-[10px] font-semibold text-[#153244] last:border-b-0"><td className="py-2 font-bold">{user.name}</td><td className="px-2 py-2">{user.area}</td><td className="py-2 text-right">{user.lastAccess}</td></tr>
             ))}
+            {lowActivityUsers.length === 0 ? <tr><td colSpan={3} className="py-8 text-center text-[11px] font-semibold text-[#718296]">No hay usuarios con baja actividad.</td></tr> : null}
           </tbody>
         </table>
       </div>

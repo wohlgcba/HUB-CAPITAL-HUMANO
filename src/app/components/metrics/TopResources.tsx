@@ -1,13 +1,15 @@
-import { topResources } from "../../data/adminMetricsDemo";
+import type { TopResourceMetric } from "../../types/metrics";
 import type { AppIconName } from "../AppIcon";
 import { AppIcon } from "../AppIcon";
 import { MetricsPanel } from "./MetricsPanel";
 
-const resourceIcons: Record<(typeof topResources)[number]["kind"], { name: AppIconName; className: string }> = {
+const resourceIcons: Record<TopResourceMetric["kind"], { name: AppIconName; className: string }> = {
   pdf: { name: "fileText", className: "bg-[#FDECEC] text-[#C7352D]" },
-  presentation: { name: "presentation", className: "bg-[#FFF0E1] text-[#D76F18]" },
+  powerpoint: { name: "presentation", className: "bg-[#FFF0E1] text-[#D76F18]" },
   spreadsheet: { name: "files", className: "bg-[#E7F7EF] text-[#15824B]" },
   word: { name: "fileDescription", className: "bg-[#EAF4FB] text-[#0072BC]" },
+  image: { name: "photo", className: "bg-[#F1E8FC] text-[#7D42CC]" },
+  other: { name: "fileText", className: "bg-[#EEF2F5] text-[#536779]" },
 };
 
 const sectionTone = {
@@ -16,7 +18,7 @@ const sectionTone = {
   cyan: "bg-[#DDF8F5] text-[#006F73]",
 };
 
-export function TopResources() {
+export function TopResources({ resources }: { resources: TopResourceMetric[] }) {
   return (
     <MetricsPanel title="Recursos más utilizados" actionLabel="Ver todos los recursos">
       <div className="mt-3 overflow-x-auto">
@@ -31,7 +33,7 @@ export function TopResources() {
             </tr>
           </thead>
           <tbody>
-            {topResources.map((resource) => {
+            {resources.map((resource) => {
               const icon = resourceIcons[resource.kind];
               return (
                 <tr key={resource.name} className="border-b border-[#E8EDF1] text-[11px] font-semibold text-[#153244] last:border-b-0">
@@ -53,6 +55,7 @@ export function TopResources() {
             })}
           </tbody>
         </table>
+        {resources.length === 0 ? <p className="py-10 text-center text-[12px] font-semibold text-[#718296]">No hay aperturas ni descargas en este período.</p> : null}
       </div>
     </MetricsPanel>
   );

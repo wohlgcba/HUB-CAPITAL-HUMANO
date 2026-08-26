@@ -14,12 +14,15 @@ import {
   searchDirectory,
 } from "../services/directoryService";
 import { getErrorMessage } from "../services/serviceError";
+import { getPendingChangeRequestForPerson, reviewDirectoryChangeRequest } from "../services/profileChangeService";
 import type { AdminPersonInput } from "../types/admin";
 import type { DirectoryFilterOptions, DirectoryPersonDetail, DirectoryPersonSummary } from "../types/directory";
+import type { DirectoryChangeRequest } from "../types/profile";
 import { AppIcon } from "./AppIcon";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { DirectoryFilters } from "./DirectoryFilters";
 import { DirectorySearch } from "./DirectorySearch";
+import { DirectoryChangeRequestDialog } from "./DirectoryChangeRequestDialog";
 import { PersonCard } from "./PersonCard";
 import { PersonDetailModal } from "./PersonDetailModal";
 import { PersonFormDialog } from "./PersonFormDialog";
@@ -59,6 +62,7 @@ export function DirectoryPage() {
   const [pendingAction, setPendingAction] = useState<PendingAction>(null);
   const [isMutating, setIsMutating] = useState(false);
   const [refreshVersion, setRefreshVersion] = useState(0);
+  const [changeRequest, setChangeRequest] = useState<DirectoryChangeRequest | null>(null);
   const lastTriggerRef = useRef<HTMLButtonElement | null>(null);
   const requestIdRef = useRef(0);
 
@@ -165,6 +169,37 @@ export function DirectoryPage() {
       toast.error("No se pudo abrir la edición", { description: getErrorMessage(loadError, "Intentá nuevamente.") });
     } finally {
       setActionPersonId("");
+    }
+  };
+
+  const handleReviewChanges = async (personId: string) => {
+    setActionPersonId(personId);
+    try {
+      const request = await getPendingChangeRequestForPerson(personId);
+      if (!request) throw new Error("La solicitud ya fue revisada.");
+      setChangeRequest(request);
+    } catch (loadError) {
+      toast.error("No se pudo abrir la solicitud", { description: getErrorMessage(loadError, "Intentá nuevamente.") });
+      setRefreshVersion((version) => version + 1);
+    } finally {
+      setActionPersonId("");
+    }
+  };
+
+  const handleReviewDecision = async (approved: boolean, note: string) => {
+    if (!changeRequest) return;
+    setIsMutating(true);
+    try {
+      await reviewDirectoryChangeRequest(changeRequest.id, approved, note);
+      toast.success(approved ? "Cambios aprobados" : "Solicitud rechazada", {
+        description: approved ? "El Directorio ya muestra la información actualizada." : "La persona podrá enviar una nueva solicitud.",
+      });
+      setChangeRequest(null);
+      setRefreshVersion((version) => version + 1);
+    } catch (reviewError) {
+      toast.error("No se pudo revisar la solicitud", { description: getErrorMessage(reviewError, "Intentá nuevamente.") });
+    } finally {
+      setIsMutating(false);
     }
   };
 
@@ -285,6 +320,7 @@ export function DirectoryPage() {
                   onEdit={(id) => void handleEdit(id)}
                   onToggleActive={(target) => setPendingAction({ kind: "toggle", person: target })}
                   onDelete={(target) => setPendingAction({ kind: "delete", person: target })}
+                  onReviewChanges={(id) => void handleReviewChanges(id)}
                 />
               ))}
             </div>
@@ -299,6 +335,7 @@ export function DirectoryPage() {
 
       {selectedPerson ? <PersonDetailModal person={selectedPerson} onClose={handleCloseModal} /> : null}
       {isAdmin ? <PersonFormDialog open={personFormOpen} person={editingPerson} options={filterOptions} loading={isMutating} onCancel={() => { setPersonFormOpen(false); setEditingPerson(null); }} onSubmitRequest={(input) => void handlePersonSubmit(input)} /> : null}
+      {isAdmin ? <DirectoryChangeRequestDialog request={changeRequest} options={filterOptions} loading={isMutating} onClose={() => setChangeRequest(null)} onReview={(approved, note) => void handleReviewDecision(approved, note)} /> : null}
       <ConfirmDialog
         open={Boolean(pendingAction)}
         title={getConfirmTitle(pendingAction)}

@@ -14,6 +14,7 @@ import {
   getSignedAssetUrl,
   removeStorageObjects,
   uploadStorageFile,
+  validateSectionBanner,
   validateResourceFile,
 } from "./storageService";
 
@@ -122,12 +123,24 @@ export async function createResource(input: ResourceInput): Promise<SectionResou
   const resourceId = crypto.randomUUID();
   const storagePath = createStoragePath(resourceId, input.file.name);
   await uploadStorageFile("resource-files", storagePath, input.file);
+  let coverPath: string | null = null;
+  if (input.coverFile) {
+    try {
+      validateSectionBanner(input.coverFile);
+      coverPath = createStoragePath(resourceId, input.coverFile.name);
+      await uploadStorageFile("resource-covers", coverPath, input.coverFile);
+    } catch (coverError) {
+      await removeStorageObjects([{ bucket: "resource-files", path: storagePath }]).catch(() => undefined);
+      throw coverError;
+    }
+  }
 
   const { error: resourceError } = await supabase.from("section_resources").insert({
     id: resourceId,
     section_id: input.sectionId,
     title: input.title.trim(),
     description: input.description?.trim() || null,
+    cover_image_path: coverPath,
     thumbnail_strategy: "auto_from_first_file",
     is_featured: input.isFeatured,
     is_active: input.isActive,
@@ -135,7 +148,10 @@ export async function createResource(input: ResourceInput): Promise<SectionResou
   });
 
   if (resourceError) {
-    await removeStorageObjects([{ bucket: "resource-files", path: storagePath }]).catch(() => undefined);
+    await removeStorageObjects([
+      { bucket: "resource-files", path: storagePath },
+      ...(coverPath ? [{ bucket: "resource-covers", path: coverPath }] : []),
+    ]).catch(() => undefined);
     throw toServiceError(resourceError, "No se pudo crear el recurso.");
   }
 
@@ -153,7 +169,10 @@ export async function createResource(input: ResourceInput): Promise<SectionResou
 
   if (fileError) {
     await supabase.from("section_resources").delete().eq("id", resourceId);
-    await removeStorageObjects([{ bucket: "resource-files", path: storagePath }]).catch(() => undefined);
+    await removeStorageObjects([
+      { bucket: "resource-files", path: storagePath },
+      ...(coverPath ? [{ bucket: "resource-covers", path: coverPath }] : []),
+    ]).catch(() => undefined);
     throw toServiceError(fileError, "No se pudo vincular el archivo con el recurso.");
   }
 
@@ -166,11 +185,23 @@ export async function updateResource(resource: SectionResource, input: ResourceI
   const previousFile = resource.files[0] ?? null;
   let uploadedPath: string | null = null;
   let uploadedKind: ResourceFileKind | null = null;
+  let uploadedCoverPath: string | null = null;
 
   if (input.file) {
     uploadedKind = validateResourceFile(input.file);
     uploadedPath = createStoragePath(resource.id, input.file.name);
     await uploadStorageFile("resource-files", uploadedPath, input.file);
+  }
+
+  if (input.coverFile) {
+    validateSectionBanner(input.coverFile);
+    uploadedCoverPath = createStoragePath(resource.id, input.coverFile.name);
+    try {
+      await uploadStorageFile("resource-covers", uploadedCoverPath, input.coverFile);
+    } catch (coverError) {
+      if (uploadedPath) await removeStorageObjects([{ bucket: "resource-files", path: uploadedPath }]).catch(() => undefined);
+      throw coverError;
+    }
   }
 
   const { error: resourceError } = await supabase
@@ -179,6 +210,7 @@ export async function updateResource(resource: SectionResource, input: ResourceI
       section_id: input.sectionId,
       title: input.title.trim(),
       description: input.description?.trim() || null,
+      cover_image_path: uploadedCoverPath ?? resource.coverImagePath,
       is_featured: input.isFeatured,
       is_active: input.isActive,
       published_at: toIsoDate(input.publishedAt),
@@ -186,9 +218,39 @@ export async function updateResource(resource: SectionResource, input: ResourceI
     .eq("id", resource.id);
 
   if (resourceError) {
-    if (uploadedPath) await removeStorageObjects([{ bucket: "resource-files", path: uploadedPath }]).catch(() => undefined);
+    await removeStorageObjects([
+      ...(uploadedPath ? [{ bucket: "resource-files", path: uploadedPath }] : []),
+      ...(uploadedCoverPath ? [{ bucket: "resource-covers", path: uploadedCoverPath }] : []),
+    ]).catch(() => undefined);
     throw toServiceError(resourceError, "No se pudo actualizar el recurso.");
   }
+
+  const rollbackResourceUpdate = async () => {
+    await supabase
+      .from("section_resources")
+      .update({
+        section_id: resource.sectionId,
+        title: resource.title,
+        description: resource.description,
+        cover_image_path: resource.coverImagePath,
+        is_featured: resource.isFeatured,
+        is_active: resource.isActive,
+        published_at: resource.publishedAt,
+      })
+      .eq("id", resource.id);
+
+    for (const file of resource.files) {
+      await supabase
+        .from("resource_files")
+        .update({ allow_download: file.allowDownload, file_kind: file.fileKind })
+        .eq("id", file.id);
+    }
+
+    await removeStorageObjects([
+      ...(uploadedPath ? [{ bucket: "resource-files", path: uploadedPath }] : []),
+      ...(uploadedCoverPath ? [{ bucket: "resource-covers", path: uploadedCoverPath }] : []),
+    ]).catch(() => undefined);
+  };
 
   if (input.file && uploadedPath && uploadedKind) {
     const filePayload = {
@@ -205,18 +267,7 @@ export async function updateResource(resource: SectionResource, input: ResourceI
       : await supabase.from("resource_files").insert({ resource_id: resource.id, sort_order: 0, ...filePayload });
 
     if (fileResult.error) {
-      await supabase
-        .from("section_resources")
-        .update({
-          section_id: resource.sectionId,
-          title: resource.title,
-          description: resource.description,
-          is_featured: resource.isFeatured,
-          is_active: resource.isActive,
-          published_at: resource.publishedAt,
-        })
-        .eq("id", resource.id);
-      await removeStorageObjects([{ bucket: "resource-files", path: uploadedPath }]).catch(() => undefined);
+      await rollbackResourceUpdate();
       throw toServiceError(fileResult.error, "No se pudo reemplazar el archivo del recurso.");
     }
 
@@ -228,15 +279,25 @@ export async function updateResource(resource: SectionResource, input: ResourceI
       .from("resource_files")
       .update({ allow_download: input.allowDownload, file_kind: input.fileKind })
       .eq("id", resource.files[0].id);
-    if (primaryFileError) throw toServiceError(primaryFileError, "No se pudo actualizar la información del archivo.");
+    if (primaryFileError) {
+      await rollbackResourceUpdate();
+      throw toServiceError(primaryFileError, "No se pudo actualizar la información del archivo.");
+    }
     if (resource.files.length > 1) {
       const { error: remainingFilesError } = await supabase
         .from("resource_files")
         .update({ allow_download: input.allowDownload })
         .eq("resource_id", resource.id)
         .neq("id", resource.files[0].id);
-      if (remainingFilesError) throw toServiceError(remainingFilesError, "No se pudo actualizar el permiso de descarga.");
+      if (remainingFilesError) {
+        await rollbackResourceUpdate();
+        throw toServiceError(remainingFilesError, "No se pudo actualizar el permiso de descarga.");
+      }
     }
+  }
+
+  if (uploadedCoverPath && resource.coverImagePath && uploadedCoverPath !== resource.coverImagePath) {
+    await removeStorageObjects([{ bucket: "resource-covers", path: resource.coverImagePath }]).catch(() => undefined);
   }
 
   const updated = await getResourceByIdInternal(resource.id, true);

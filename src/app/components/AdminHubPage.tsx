@@ -50,6 +50,7 @@ export function AdminHubPage() {
   }, []);
 
   useEffect(() => {
+    void logAuditEvent("hub_view", "hub");
     void loadDashboard(true);
   }, [loadDashboard]);
 

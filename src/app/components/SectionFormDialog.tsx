@@ -5,6 +5,7 @@ import { getErrorMessage } from "../services/serviceError";
 import type { HubSection, SectionInput } from "../types/hub";
 import { AdminForm } from "./AdminForm";
 import { AdminField, AdminSwitch, adminInputClass, adminTextAreaClass } from "./AdminFormFields";
+import { ImageCropField } from "./ImageCropField";
 
 type SectionFormDialogProps = {
   open: boolean;
@@ -128,7 +129,7 @@ export function SectionFormDialog({ open, section = null, onCancel, onSaved }: S
         </AdminField>
         <div className="sm:col-span-2">
           <AdminField label="Imagen / banner" hint={section?.bannerUrl ? "Dejá el campo vacío para conservar la imagen actual." : "PNG, JPG o WEBP. Máximo 10 MB."} error={errors.bannerFile}>
-            <input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => update("bannerFile", event.target.files?.[0] ?? null)} className={`${adminInputClass} cursor-pointer py-2 file:mr-3 file:rounded-[5px] file:border-0 file:bg-[#EAF4FB] file:px-3 file:py-1.5 file:text-[12px] file:font-extrabold file:text-[#005CB9]`} />
+            <ImageCropField label="banner de la sección" currentUrl={section?.bannerUrl} value={form.bannerFile} disabled={loading} error={errors.bannerFile} onChange={(file) => update("bannerFile", file)} />
           </AdminField>
         </div>
         <div className="sm:col-span-2">

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 import { listPublishedResourceSearchItems } from "../services/resourceService";
+import { logAuditEvent } from "../services/auditService";
 import { getErrorMessage } from "../services/serviceError";
 import { listPublishedSections } from "../services/sectionService";
 import type { HubSection } from "../types/hub";
@@ -16,6 +17,7 @@ export function HubPage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
+    void logAuditEvent("hub_view", "hub");
     let cancelled = false;
     setIsLoading(true);
     setError("");

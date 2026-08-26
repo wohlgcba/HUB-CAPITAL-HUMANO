@@ -21,6 +21,7 @@ type AuthContextValue = AuthState & {
   changePassword: (password: string) => Promise<void>;
   changePasswordWithCurrentPassword: (currentPassword: string, newPassword: string) => Promise<void>;
   sendPasswordReset: (email: string) => Promise<void>;
+  refreshProfile: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -127,6 +128,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [state],
   );
 
+  const refreshProfile = useCallback(async () => {
+    if (state.status !== "authenticated") return;
+    const profile = await getProfile(state.session.user.id);
+    setState({ status: "authenticated", session: state.session, profile, error: null });
+  }, [state]);
+
   const value = useMemo<AuthContextValue>(
     () => ({
       ...state,
@@ -136,8 +143,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       changePassword,
       changePasswordWithCurrentPassword,
       sendPasswordReset: requestPasswordReset,
+      refreshProfile,
     }),
-    [changePassword, changePasswordWithCurrentPassword, isPasswordRecovery, signIn, signOut, state],
+    [changePassword, changePasswordWithCurrentPassword, isPasswordRecovery, refreshProfile, signIn, signOut, state],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

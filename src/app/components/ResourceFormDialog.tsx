@@ -6,6 +6,7 @@ import { inferResourceFileKind } from "../services/storageService";
 import type { ResourceFileKind, ResourceInput, SectionResource } from "../types/resources";
 import { AdminForm } from "./AdminForm";
 import { AdminField, AdminSwitch, adminInputClass, adminTextAreaClass } from "./AdminFormFields";
+import { ImageCropField } from "./ImageCropField";
 
 type ResourceFormDialogProps = {
   open: boolean;
@@ -21,6 +22,7 @@ type ResourceFormState = {
   description: string;
   file: File | null;
   fileKind: ResourceFileKind;
+  coverFile: File | null;
   isFeatured: boolean;
   allowDownload: boolean;
   publishedAt: string;
@@ -69,6 +71,7 @@ export function ResourceFormDialog({
       description: form.description.trim() || null,
       file: form.file,
       fileKind: form.fileKind,
+      coverFile: form.coverFile,
       isFeatured: form.isFeatured,
       allowDownload: form.allowDownload,
       publishedAt: `${form.publishedAt}T12:00:00`,
@@ -124,6 +127,11 @@ export function ResourceFormDialog({
             <input type="file" accept=".pdf,.ppt,.pptx,.doc,.docx,.xls,.xlsx" onChange={(event) => handleFileChange(event.target.files?.[0] ?? null)} className={`${adminInputClass} cursor-pointer py-2 file:mr-3 file:rounded-[5px] file:border-0 file:bg-[#EAF4FB] file:px-3 file:py-1.5 file:text-[12px] file:font-extrabold file:text-[#005CB9]`} />
           </AdminField>
         </div>
+        <div className="sm:col-span-2">
+          <AdminField label="Foto de portada" hint={resource?.coverImageUrl ? "Si no elegís otra imagen, se conserva la actual." : "Opcional. Si no cargás una, se mantiene la vista automática del archivo."}>
+            <ImageCropField label="portada del recurso" currentUrl={resource?.coverImageUrl} value={form.coverFile} disabled={loading} error={errors.coverFile} onChange={(file) => update("coverFile", file)} />
+          </AdminField>
+        </div>
         <AdminField label="Fecha de publicación" required error={errors.publishedAt}>
           <input type="date" value={form.publishedAt} onChange={(event) => update("publishedAt", event.target.value)} className={adminInputClass} />
         </AdminField>
@@ -144,6 +152,7 @@ function createInitialState(resource: SectionResource | null | undefined, sectio
     description: resource?.description ?? "",
     file: null,
     fileKind: resource?.files[0]?.fileKind ?? "other",
+    coverFile: null,
     isFeatured: resource?.isFeatured ?? false,
     allowDownload: resource?.files[0]?.allowDownload ?? true,
     publishedAt: toDateInput(resource?.publishedAt ?? new Date().toISOString()),
@@ -158,6 +167,7 @@ function validate(form: ResourceFormState, isEditing: boolean) {
   if (!isEditing && !form.file) errors.file = "Seleccioná un archivo.";
   if (form.file && form.file.size > 50 * 1024 * 1024) errors.file = "El archivo no puede superar los 50 MB.";
   if (form.file && inferResourceFileKind(form.file) === "other") errors.file = "El archivo debe ser PDF, PPTX, DOCX o XLSX.";
+  if (form.coverFile && form.coverFile.size > 10 * 1024 * 1024) errors.coverFile = "La portada no puede superar los 10 MB.";
   if (!form.publishedAt || Number.isNaN(new Date(`${form.publishedAt}T12:00:00`).getTime())) errors.publishedAt = "Ingresá una fecha válida.";
   return errors;
 }

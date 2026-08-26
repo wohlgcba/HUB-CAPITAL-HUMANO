@@ -15,6 +15,7 @@ export type DirectoryPersonSummary = {
   isActive: boolean;
   systemRole: "user" | "admin" | null;
   hasAccount: boolean;
+  hasPendingChanges: boolean;
 };
 
 export type DirectoryPersonDetail = DirectoryPersonSummary & {

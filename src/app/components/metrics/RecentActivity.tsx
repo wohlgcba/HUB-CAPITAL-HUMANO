@@ -1,5 +1,5 @@
 import { IconDownload, IconFileText, IconLogin2, IconTrendingUp } from "@tabler/icons-react";
-import { recentActivity } from "../../data/adminMetricsDemo";
+import type { RecentActivityMetric } from "../../types/metrics";
 import { MetricsPanel } from "./MetricsPanel";
 
 const iconByType = { open: IconTrendingUp, login: IconLogin2, download: IconDownload, publish: IconFileText };
@@ -10,11 +10,11 @@ const toneClasses = {
   violet: "bg-[#F1E8FC] text-[#7D42CC]",
 };
 
-export function RecentActivity() {
+export function RecentActivity({ activity }: { activity: RecentActivityMetric[] }) {
   return (
     <MetricsPanel title="Última actividad" actionLabel="Ver toda la actividad">
       <ol className="mt-3 divide-y divide-[#E8EDF1]">
-        {recentActivity.map((item) => {
+        {activity.map((item) => {
           const Icon = iconByType[item.icon];
           return (
             <li key={`${item.time}-${item.text}`} className="grid grid-cols-[34px_minmax(0,1fr)_38px] items-center gap-2 py-2.5">
@@ -24,6 +24,7 @@ export function RecentActivity() {
             </li>
           );
         })}
+        {activity.length === 0 ? <li className="py-10 text-center text-[11px] font-semibold text-[#718296]">No hay actividad registrada en este período.</li> : null}
       </ol>
     </MetricsPanel>
   );

@@ -13,6 +13,7 @@ type PersonCardProps = {
   onEdit?: (personId: string) => void;
   onToggleActive?: (person: DirectoryPersonSummary) => void;
   onDelete?: (person: DirectoryPersonSummary) => void;
+  onReviewChanges?: (personId: string) => void;
 };
 
 const avatarColors = ["#BFEFED", "#FFD957", "#D4C2EF", "#C8F0DF", "#FFD7C9", "#DCEAFF"];
@@ -27,6 +28,7 @@ export function PersonCard({
   onEdit,
   onToggleActive,
   onDelete,
+  onReviewChanges,
 }: PersonCardProps) {
   const columns = isAdmin
     ? "xl:grid-cols-[minmax(180px,1.1fr)_minmax(145px,0.9fr)_minmax(120px,0.75fr)_auto]"
@@ -41,7 +43,7 @@ export function PersonCard({
         </span>
         <div className="min-w-0">
           <h3 className="truncate text-[18px] font-extrabold leading-tight text-[#061947]">{person.name}</h3>
-          {isAdmin ? <span className={`mt-1 inline-flex rounded-[4px] px-2 py-0.5 text-[10px] font-extrabold ${person.isActive ? "bg-[#DDF8F5] text-[#006F73]" : "bg-[#FFF1C2] text-[#735B00]"}`}>{person.isActive ? "Activo" : "Inactivo"}</span> : null}
+          {isAdmin ? <div className="mt-1 flex flex-wrap gap-1.5"><span className={`inline-flex rounded-[4px] px-2 py-0.5 text-[10px] font-extrabold ${person.isActive ? "bg-[#DDF8F5] text-[#006F73]" : "bg-[#FFF1C2] text-[#735B00]"}`}>{person.isActive ? "Activo" : "Inactivo"}</span>{person.hasPendingChanges ? <span className="inline-flex items-center gap-1 rounded-[4px] bg-[#FFF1C2] px-2 py-0.5 text-[10px] font-extrabold text-[#735B00]"><AppIcon name="alert" size={12} /> Cambios pendientes</span> : null}</div> : null}
         </div>
       </div>
 
@@ -60,6 +62,7 @@ export function PersonCard({
         </button>
         {isAdmin ? (
           <>
+            {person.hasPendingChanges ? <button type="button" disabled={actionLoading} onClick={() => onReviewChanges?.(person.id)} className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-[5px] border border-[#D6A900] bg-[#FFF9DD] px-3 text-[12px] font-extrabold text-[#735B00] hover:bg-[#FFF1C2] disabled:opacity-50"><AppIcon name="alert" size={16} /> Revisar</button> : null}
             <button type="button" disabled={actionLoading} onClick={() => onEdit?.(person.id)} aria-label={`Editar ${person.name}`} title="Editar" className="inline-flex h-11 w-11 items-center justify-center gap-1.5 rounded-[5px] border border-[#C7D1DA] text-[12px] font-extrabold text-[#153244] hover:bg-[#F5F7F8] disabled:opacity-50 2xl:w-auto 2xl:px-3"><AppIcon name="edit" size={16} /><span className="hidden 2xl:inline">Editar</span></button>
             <details className="group relative">
               <summary className="flex h-11 w-11 cursor-pointer list-none items-center justify-center rounded-[5px] border border-[#C7D1DA] text-[#153244] hover:bg-[#F5F7F8] [&::-webkit-details-marker]:hidden" aria-label={`Acciones para ${person.name}`}><AppIcon name="dots" size={20} /></summary>

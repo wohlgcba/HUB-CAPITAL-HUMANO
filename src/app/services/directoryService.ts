@@ -9,6 +9,7 @@ import type {
   DirectoryResult,
 } from "../types/directory";
 import { getAdminPersonAccess } from "./adminService";
+import { getPendingDirectoryPersonIds } from "./profileChangeService";
 import { toServiceError } from "./serviceError";
 import { getSignedAssetUrls } from "./storageService";
 
@@ -117,9 +118,10 @@ export async function searchDirectory(query: DirectoryQuery): Promise<DirectoryR
 
   const peopleRows = data as PersonSummaryRow[];
   const personIds = peopleRows.map((person) => person.id);
-  const [linksByPerson, profilesByPerson] = await Promise.all([
+  const [linksByPerson, profilesByPerson, pendingPersonIds] = await Promise.all([
     getLinksByPerson(personIds),
     getProfilesByPerson(personIds),
+    getPendingDirectoryPersonIds(personIds),
   ]);
   const avatarUrlsByPerson = await getAvatarUrlsByPerson(profilesByPerson);
 
@@ -131,6 +133,7 @@ export async function searchDirectory(query: DirectoryQuery): Promise<DirectoryR
         linksByPerson.get(person.id) ?? [],
         profilesByPerson.get(person.id) ?? null,
         avatarUrlsByPerson.get(person.id) ?? null,
+        pendingPersonIds.has(person.id),
       ),
     ),
   };
@@ -146,9 +149,10 @@ export async function getDirectoryPersonDetail(personId: string, includeInactive
   if (error) throw toServiceError(error, "No se pudo cargar el perfil del integrante.");
   if (!data) return null;
 
-  const [linksByPerson, profilesByPerson] = await Promise.all([
+  const [linksByPerson, profilesByPerson, pendingPersonIds] = await Promise.all([
     getLinksByPerson([personId]),
     getProfilesByPerson([personId]),
+    getPendingDirectoryPersonIds([personId]),
   ]);
   const avatarUrlsByPerson = await getAvatarUrlsByPerson(profilesByPerson);
   return {
@@ -157,6 +161,7 @@ export async function getDirectoryPersonDetail(personId: string, includeInactive
       linksByPerson.get(personId) ?? [],
       profilesByPerson.get(personId) ?? null,
       avatarUrlsByPerson.get(personId) ?? null,
+      pendingPersonIds.has(personId),
     ),
     phone: data.phone,
     email: data.email,
@@ -252,6 +257,7 @@ function mapSummary(
   linkTypes: DirectoryLinkType[],
   profile: ProfileSummaryRow | null,
   avatarUrl: string | null,
+  hasPendingChanges: boolean,
 ): DirectoryPersonSummary {
   return {
     id: row.id,
@@ -263,6 +269,7 @@ function mapSummary(
     isActive: row.is_active,
     systemRole: profile?.role ?? null,
     hasAccount: Boolean(profile),
+    hasPendingChanges,
   };
 }
 

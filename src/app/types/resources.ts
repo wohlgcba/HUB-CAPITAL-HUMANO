@@ -71,6 +71,7 @@ export type ResourceInput = {
   description: string | null;
   file: File | null;
   fileKind: ResourceFileKind;
+  coverFile: File | null;
   isFeatured: boolean;
   allowDownload: boolean;
   publishedAt: string;

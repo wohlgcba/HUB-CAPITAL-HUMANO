@@ -1,5 +1,5 @@
 import { IconDownload, IconFileText, IconInfoCircle, IconTrendingUp, IconUsersGroup } from "@tabler/icons-react";
-import type { MetricKpi } from "../../data/adminMetricsDemo";
+import type { MetricKpi } from "../../types/metrics";
 
 const toneClasses = {
   blue: "bg-[#E6F2FF] text-[#0878D1]",
@@ -29,9 +29,9 @@ export function MetricCard({ metric }: { metric: MetricKpi }) {
         </div>
         <strong className="mt-1 block text-[30px] font-extrabold leading-none text-[#061947]">{metric.value}</strong>
         <p className="mt-2 text-[12px] font-semibold text-[#536779]">{metric.detail}</p>
-        <p className="mt-4 flex items-center gap-1 text-[11px] font-extrabold text-[#16865A]">
-          <IconTrendingUp size={14} stroke={2.4} />
-          {metric.change}
+        <p className={`mt-4 flex items-center gap-1 text-[11px] font-extrabold ${metric.changePercent !== null && metric.changePercent < 0 ? "text-[#B52F2F]" : "text-[#16865A]"}`}>
+          <IconTrendingUp size={14} stroke={2.4} className={metric.changePercent !== null && metric.changePercent < 0 ? "rotate-180" : ""} />
+          {metric.changePercent === null ? "Sin período anterior comparable" : `${metric.changePercent >= 0 ? "+" : ""}${metric.changePercent}% vs. período anterior`}
         </p>
       </div>
     </article>
