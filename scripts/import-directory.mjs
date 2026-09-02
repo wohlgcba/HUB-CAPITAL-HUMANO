@@ -17,6 +17,7 @@ loadEnvFile(path.resolve(".env.local"));
 loadEnvFile(path.resolve(".env.admin.local"));
 
 const validateOnly = process.argv.includes("--validate-only");
+const dryRun = process.argv.includes("--dry-run");
 const workbookArgument = process.argv.find((argument) => argument.startsWith("--file="));
 const workbookPath = path.resolve(workbookArgument?.slice("--file=".length) || DEFAULT_WORKBOOK);
 const parsed = await parseWorkbook(workbookPath);
@@ -41,9 +42,11 @@ const supabase = createClient(supabaseUrl, adminApiKey, {
   auth: { autoRefreshToken: false, persistSession: false },
 });
 
-const result = await importDirectory(supabase, parsed, adminInitialPassword);
+const result = dryRun
+  ? await previewDirectoryImport(supabase, parsed)
+  : await importDirectory(supabase, parsed, adminInitialPassword);
 
-console.log("IMPORT_COMPLETE", JSON.stringify(result));
+console.log(dryRun ? "IMPORT_PREVIEW" : "IMPORT_COMPLETE", JSON.stringify(result));
 
 function loadEnvFile(filePath) {
   if (!fs.existsSync(filePath)) return;
@@ -83,11 +86,11 @@ async function parseWorkbook(filePath) {
   }
 
   const sourceRows = rows.slice(headerIndex + 1).filter((row) => row.some((value) => value !== null && value !== ""));
-  const people = sourceRows.flatMap((row) => {
+  const rawPeople = sourceRows.flatMap((row) => {
     const record = Object.fromEntries(headers.map((header, index) => [header, row[index]]));
     const fullName = normalizeText(record.Nombre);
     const area = normalizeText(record["Área"]);
-    if (!fullName || !area) return [];
+    if (!fullName || !area || isPlaceholderName(fullName)) return [];
 
     const email = normalizeEmail(record.Mail);
     const cuit = normalizeCuit(record.CUIL);
@@ -101,6 +104,7 @@ async function parseWorkbook(filePath) {
         email: isValidEmail(email) ? email : null,
         jobRole: normalizeNullableText(record.Rol),
         building: normalizeNullableText(record["Edificio de GCBA"]),
+        organizationPath: area.split("|").map((value) => value.trim()).filter(Boolean).reverse(),
         linkTypes: normalizeText(record["Tipo de enlace"])
           .split(",")
           .map((value) => value.trim())
@@ -108,6 +112,11 @@ async function parseWorkbook(filePath) {
       },
     ];
   });
+  const organizationAliases = buildOrganizationAliases(rawPeople);
+  const people = rawPeople.map((person) => ({
+    ...person,
+    organizationPath: person.organizationPath.map((segment) => organizationAliases.get(normalizeKey(segment)) || segment),
+  }));
 
   const emailCounts = countBy(people.filter((person) => person.email), (person) => person.email);
   const cuitCounts = countBy(people.filter((person) => person.cuit), (person) => person.cuit);
@@ -145,28 +154,45 @@ function printValidationSummary(parsedWorkbook) {
       peopleWithValidCuit: peopleWithCuit,
       duplicateEmailGroups: duplicateEmails,
       authReadyPeople: parsedWorkbook.authReadyPeople.length,
+      organizationRoots: new Set(parsedWorkbook.people.map((person) => person.organizationPath[0])).size,
+      organizationUnits: new Set(parsedWorkbook.people.flatMap((person) => person.organizationPath.map((_, index) => organizationPathKey(person.organizationPath.slice(0, index + 1))))).size,
     }),
   );
 }
 
+async function previewDirectoryImport(adminClient, parsedWorkbook) {
+  const existingPeople = await requireData(
+    adminClient.from("directory_people").select("id,cuit,email,area,full_name,is_active"),
+    "No se pudo leer el Directorio existente.",
+  );
+  const matches = matchIncomingPeople(existingPeople, parsedWorkbook.people);
+  const matchedIds = new Set(matches.flatMap((match) => match.existing ? [match.existing.id] : []));
+  return {
+    currentDirectoryPeople: existingPeople.length,
+    sourcePeople: parsedWorkbook.people.length,
+    toInsert: matches.filter((match) => !match.existing).length,
+    toUpdate: matches.filter((match) => match.existing).length,
+    matchedBy: Object.fromEntries(countBy(matches, (match) => match.matchType || "new")),
+    areaChanges: matches.filter((match) => match.existing && normalizeKey(match.existing.area) !== normalizeKey(match.person.area)).map((match) => ({ name: match.person.fullName, from: match.existing.area, to: match.person.area })),
+    newPeople: matches.filter((match) => !match.existing).map((match) => ({ name: match.person.fullName, area: match.person.area })),
+    notInWorkbook: existingPeople.filter((person) => !matchedIds.has(person.id)).map((person) => ({ name: person.full_name, area: person.area, active: person.is_active })),
+  };
+}
+
 async function importDirectory(adminClient, parsedWorkbook, adminPassword) {
   const existingPeople = await requireData(
-    adminClient.from("directory_people").select("id,cuit,email,area,full_name"),
+    adminClient.from("directory_people").select("id,cuit,email,area,full_name,is_active"),
     "No se pudo leer el Directorio existente.",
   );
 
-  const byCuit = new Map(existingPeople.filter((person) => person.cuit).map((person) => [person.cuit, person]));
-  const byEmail = new Map(existingPeople.filter((person) => person.email).map((person) => [person.email.toLowerCase(), person]));
-  const byNameArea = new Map(existingPeople.map((person) => [personKey(person.area, person.full_name), person]));
+  const matches = matchIncomingPeople(existingPeople, parsedWorkbook.people);
+  const organizationUnitsByPath = await syncOrganizationUnits(adminClient, parsedWorkbook.people);
   const toUpdate = [];
   const toInsert = [];
 
-  for (const person of parsedWorkbook.people) {
-    const existing =
-      (person.cuit ? byCuit.get(person.cuit) : undefined) ||
-      (person.email ? byEmail.get(person.email) : undefined) ||
-      byNameArea.get(personKey(person.area, person.fullName));
-    const payload = toDirectoryPayload(person);
+  for (const { person, existing } of matches) {
+    const organizationUnitId = organizationUnitsByPath.get(organizationPathKey(person.organizationPath));
+    const payload = toDirectoryPayload(person, existing, organizationUnitId);
 
     if (existing) toUpdate.push({ ...payload, id: existing.id });
     else toInsert.push(payload);
@@ -205,6 +231,22 @@ async function importDirectory(adminClient, parsedWorkbook, adminPassword) {
     : [];
   const linkTypeByName = new Map(linkTypes.map((linkType) => [linkType.name, linkType.id]));
   const importedIds = importedPeople.map((person) => person.id);
+
+  const matchedExistingIds = new Set(matches.flatMap((match) => match.existing ? [match.existing.id] : []));
+  const linkedProfiles = await requireData(
+    adminClient.from("profiles").select("directory_person_id").not("directory_person_id", "is", null),
+    "No se pudieron identificar las cuentas vinculadas.",
+  );
+  const linkedPersonIds = new Set(linkedProfiles.map((profile) => profile.directory_person_id));
+  const idsToDeactivate = existingPeople
+    .filter((person) => person.is_active && !matchedExistingIds.has(person.id) && !linkedPersonIds.has(person.id))
+    .map((person) => person.id);
+  for (const chunk of chunks(idsToDeactivate, 100)) {
+    await requireSuccess(
+      adminClient.from("directory_people").update({ is_active: false }).in("id", chunk),
+      "No se pudieron desactivar los contactos ausentes del nuevo Directorio.",
+    );
+  }
 
   for (const chunk of chunks(importedIds, 100)) {
     await requireSuccess(
@@ -290,8 +332,37 @@ async function importDirectory(adminClient, parsedWorkbook, adminPassword) {
     directoryUpdated: updatedPeople.length,
     directoryAuthEligible: parsedWorkbook.authReadyPeople.length,
     directoryAuthCreated,
+    organizationUnits: organizationUnitsByPath.size,
+    directoryDeactivated: idsToDeactivate.length,
     admin: adminResult,
   };
+}
+
+async function syncOrganizationUnits(adminClient, people) {
+  const unitsByPath = new Map();
+  const paths = [...new Map(people.flatMap((person) => person.organizationPath.map((_, index) => {
+    const segments = person.organizationPath.slice(0, index + 1);
+    return [organizationPathKey(segments), segments];
+  }))).values()].sort((first, second) => first.length - second.length || organizationPathKey(first).localeCompare(organizationPathKey(second), "es-AR"));
+
+  for (let depth = 1; depth <= 3; depth += 1) {
+    const levelPaths = paths.filter((segments) => segments.length === depth);
+    if (!levelPaths.length) continue;
+    const rows = levelPaths.map((segments) => ({
+      name: segments.at(-1),
+      short_name: extractOrganizationShortName(segments.at(-1)),
+      parent_id: depth === 1 ? null : unitsByPath.get(organizationPathKey(segments.slice(0, -1))),
+      depth,
+      path_key: organizationPathKey(segments),
+      is_active: true,
+    }));
+    const saved = await requireData(
+      adminClient.from("organization_units").upsert(rows, { onConflict: "path_key" }).select("id,path_key"),
+      "No se pudo sincronizar la jerarquía organizacional.",
+    );
+    for (const unit of saved) unitsByPath.set(unit.path_key, unit.id);
+  }
+  return unitsByPath;
 }
 
 async function provisionAdmin(adminClient, authByEmail, profileByEmail, password) {
@@ -346,17 +417,70 @@ async function listAllAuthUsers(adminClient) {
   }
 }
 
-function toDirectoryPayload(person) {
+function toDirectoryPayload(person, existing = null, organizationUnitId = null) {
   return {
-    cuit: person.cuit,
+    cuit: person.cuit || existing?.cuit || null,
     area: person.area,
     full_name: person.fullName,
     phone: person.phone,
-    email: person.email,
+    email: person.email || existing?.email || null,
     job_role: person.jobRole,
     gcba_building: person.building,
+    organization_unit_id: organizationUnitId,
     is_active: true,
   };
+}
+
+function matchIncomingPeople(existingPeople, incomingPeople) {
+  const byCuit = new Map(existingPeople.filter((person) => person.cuit).map((person) => [normalizeCuit(person.cuit), person]));
+  const byEmail = new Map(existingPeople.filter((person) => person.email).map((person) => [normalizeEmail(person.email), person]));
+  const byName = new Map();
+  for (const person of existingPeople) {
+    const key = normalizeKey(person.full_name);
+    byName.set(key, [...(byName.get(key) || []), person]);
+  }
+
+  return incomingPeople.map((person) => {
+    const identityMatches = [
+      person.cuit ? byCuit.get(person.cuit) : null,
+      person.email ? byEmail.get(person.email) : null,
+    ].filter(Boolean);
+    const distinctIdentityIds = new Set(identityMatches.map((match) => match.id));
+    if (distinctIdentityIds.size > 1) {
+      throw new Error(`CUIT y mail identifican personas distintas para ${person.fullName}.`);
+    }
+    if (identityMatches[0]) {
+      return { person, existing: identityMatches[0], matchType: person.cuit && byCuit.get(person.cuit)?.id === identityMatches[0].id ? "cuit" : "email" };
+    }
+    const nameMatches = byName.get(normalizeKey(person.fullName)) || [];
+    return { person, existing: nameMatches.length === 1 ? nameMatches[0] : null, matchType: nameMatches.length === 1 ? "unique-name" : "" };
+  });
+}
+
+function buildOrganizationAliases(people) {
+  const aliases = new Map();
+  for (const segment of people.flatMap((person) => person.organizationPath)) {
+    const abbreviation = extractOrganizationShortName(segment);
+    if (abbreviation) aliases.set(normalizeKey(abbreviation), segment);
+  }
+  return aliases;
+}
+
+function extractOrganizationShortName(value) {
+  const match = value.match(/\(([^)]+)\)\s*$/);
+  return match?.[1]?.trim() || null;
+}
+
+function organizationPathKey(segments) {
+  return segments.map(normalizeKey).join(" > ");
+}
+
+function normalizeKey(value) {
+  return normalizeText(value).toLocaleLowerCase("es-AR");
+}
+
+function isPlaceholderName(value) {
+  return normalizeKey(value) === "no hay enlace";
 }
 
 function normalizeText(value) {

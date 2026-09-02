@@ -8,7 +8,7 @@ coverage/
 .env
 .env.*
 *.local
-Directorio Red Enlaces Capital Humano 2026 .xlsx
+Directorio Red Enlaces Capital Humano 2026*.xlsx
 
 logs/
 *.log

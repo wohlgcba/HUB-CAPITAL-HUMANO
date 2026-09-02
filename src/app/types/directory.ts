@@ -36,8 +36,17 @@ export type DirectoryFilterOption = {
   color?: string;
 };
 
+export type DirectoryOrganizationUnit = {
+  id: string;
+  name: string;
+  parentId: string | null;
+  depth: number;
+  count: number;
+};
+
 export type DirectoryFilterOptions = {
   areas: DirectoryFilterOption[];
+  organizationUnits: DirectoryOrganizationUnit[];
   linkTypes: DirectoryFilterOption[];
   buildings: DirectoryFilterOption[];
   statuses: DirectoryFilterOption[];
@@ -46,7 +55,8 @@ export type DirectoryFilterOptions = {
 
 export type DirectoryQuery = {
   search: string;
-  area: string;
+  organizationUnitId: string;
+  organizationExact: boolean;
   linkTypeId: string;
   building: string;
   status: string;

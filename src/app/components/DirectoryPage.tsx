@@ -28,7 +28,7 @@ import { PersonDetailModal } from "./PersonDetailModal";
 import { PersonFormDialog } from "./PersonFormDialog";
 
 const pageSize = 10;
-const emptyOptions: DirectoryFilterOptions = { areas: [], linkTypes: [], buildings: [], statuses: [], total: 0 };
+const emptyOptions: DirectoryFilterOptions = { areas: [], organizationUnits: [], linkTypes: [], buildings: [], statuses: [], total: 0 };
 
 type PendingAction =
   | { kind: "save"; person: DirectoryPersonDetail; input: AdminPersonInput }
@@ -42,7 +42,8 @@ export function DirectoryPage() {
   const currentPersonId = auth.profile?.directoryPersonId ?? null;
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebouncedValue(search, 300);
-  const [area, setArea] = useState("");
+  const [organizationUnitId, setOrganizationUnitId] = useState("");
+  const [organizationExact, setOrganizationExact] = useState(false);
   const [linkTypeId, setLinkTypeId] = useState("");
   const [building, setBuilding] = useState("");
   const [status, setStatus] = useState("");
@@ -103,7 +104,8 @@ export function DirectoryPage() {
 
     void searchDirectory({
       search: debouncedSearch,
-      area,
+      organizationUnitId,
+      organizationExact,
       linkTypeId,
       building,
       status: isAdmin ? status : "active",
@@ -123,7 +125,7 @@ export function DirectoryPage() {
       .finally(() => {
         if (requestIdRef.current === requestId) setIsLoadingResults(false);
       });
-  }, [area, building, currentPage, debouncedSearch, isAdmin, linkTypeId, refreshVersion, status]);
+  }, [building, currentPage, debouncedSearch, isAdmin, linkTypeId, organizationExact, organizationUnitId, refreshVersion, status]);
 
   const updateFilter = (setter: (value: string) => void) => (value: string) => {
     setter(value);
@@ -132,7 +134,8 @@ export function DirectoryPage() {
 
   const handleClear = () => {
     setSearch("");
-    setArea("");
+    setOrganizationUnitId("");
+    setOrganizationExact(false);
     setLinkTypeId("");
     setBuilding("");
     setStatus("");
@@ -259,13 +262,18 @@ export function DirectoryPage() {
   const lastItem = Math.min(currentPage * pageSize, filteredTotal);
   const filterProps = {
     options: filterOptions,
-    area,
+    organizationUnitId,
+    organizationExact,
     linkTypeId,
     building,
     status,
     showStatus: isAdmin,
     disabled: isLoadingFilters,
-    onAreaChange: updateFilter(setArea),
+    onOrganizationChange: (unitId: string, exact: boolean) => {
+      setOrganizationUnitId(unitId);
+      setOrganizationExact(exact);
+      setCurrentPage(1);
+    },
     onLinkTypeChange: updateFilter(setLinkTypeId),
     onBuildingChange: updateFilter(setBuilding),
     onStatusChange: updateFilter(setStatus),

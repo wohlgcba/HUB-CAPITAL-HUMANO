@@ -4,7 +4,7 @@ import type { ResourceFileKind } from "../types/resources";
 import { toServiceError } from "./serviceError";
 
 type AuditRow = { id: string; profile_id: string | null; event_type: string; entity_type: string | null; entity_id: string | null; created_at: string };
-type ProfileRow = { id: string; directory_person_id: string | null; full_name: string; is_active: boolean; must_change_password: boolean; first_login_at: string | null; last_login_at: string | null; avatar_path: string | null };
+type ProfileRow = { id: string; directory_person_id: string | null; full_name: string; role: "user" | "admin"; is_active: boolean; must_change_password: boolean; first_login_at: string | null; last_login_at: string | null; avatar_path: string | null };
 type PersonRow = { id: string; area: string; phone: string | null; email: string | null; gcba_building: string | null; is_active: boolean };
 type SectionRow = { id: string; title: string; slug: string; is_active: boolean };
 type ResourceRow = { id: string; section_id: string; title: string; created_at: string; published_at: string; is_active: boolean };
@@ -23,7 +23,7 @@ export async function getAdminActivityMetrics(range: MetricsRange, sectionId: st
   const duration = range.end.getTime() - range.start.getTime() + 1;
   const previousRange = { start: new Date(range.start.getTime() - duration), end: new Date(range.start.getTime() - 1) };
   const [profilesResult, peopleResult, sectionsResult, resourcesResult, filesResult, events] = await Promise.all([
-    supabase.from("profiles").select("id,directory_person_id,full_name,is_active,must_change_password,first_login_at,last_login_at,avatar_path"),
+    supabase.from("profiles").select("id,directory_person_id,full_name,role,is_active,must_change_password,first_login_at,last_login_at,avatar_path"),
     supabase.from("directory_people").select("id,area,phone,email,gcba_building,is_active"),
     supabase.from("sections").select("id,title,slug,is_active").order("sort_order", { ascending: true }),
     supabase.from("section_resources").select("id,section_id,title,created_at,published_at,is_active"),
@@ -34,19 +34,22 @@ export async function getAdminActivityMetrics(range: MetricsRange, sectionId: st
   if (firstError) throw toServiceError(firstError, "No se pudieron calcular las métricas.");
 
   const profiles = profilesResult.data as ProfileRow[];
+  const userProfiles = profiles.filter((profile) => profile.role === "user");
+  const userProfileIds = new Set(userProfiles.map((profile) => profile.id));
   const people = peopleResult.data as PersonRow[];
   const sections = sectionsResult.data as SectionRow[];
   const resources = resourcesResult.data as ResourceRow[];
   const files = filesResult.data as FileRow[];
   const resourceById = new Map(resources.map((resource) => [resource.id, resource]));
   const sectionById = new Map(sections.map((section) => [section.id, section]));
-  const profileById = new Map(profiles.map((profile) => [profile.id, profile]));
+  const profileById = new Map(userProfiles.map((profile) => [profile.id, profile]));
   const personById = new Map(people.map((person) => [person.id, person]));
   const firstFileKind = new Map<string, ResourceFileKind>();
   for (const file of files) if (!firstFileKind.has(file.resource_id)) firstFileKind.set(file.resource_id, file.file_kind);
 
-  const currentEvents = events.filter((event) => isWithin(event.created_at, range) && matchesSection(event, sectionId, resourceById));
-  const previousEvents = events.filter((event) => isWithin(event.created_at, previousRange) && matchesSection(event, sectionId, resourceById));
+  const userEvents = events.filter((event) => Boolean(event.profile_id && userProfileIds.has(event.profile_id)));
+  const currentEvents = userEvents.filter((event) => isWithin(event.created_at, range) && matchesSection(event, sectionId, resourceById));
+  const previousEvents = userEvents.filter((event) => isWithin(event.created_at, previousRange) && matchesSection(event, sectionId, resourceById));
   const activeProfileIds = uniqueProfiles(currentEvents.filter((event) => trackedActivity.has(event.event_type)));
   const previousActiveProfileIds = uniqueProfiles(previousEvents.filter((event) => trackedActivity.has(event.event_type)));
   const visits = countVisits(currentEvents, Boolean(sectionId));
@@ -55,7 +58,7 @@ export async function getAdminActivityMetrics(range: MetricsRange, sectionId: st
   const previousResourceViews = countType(previousEvents, "resource_view");
   const downloads = countType(currentEvents, "resource_download");
   const previousDownloads = countType(previousEvents, "resource_download");
-  const enabledUsers = profiles.filter((profile) => profile.is_active).length;
+  const enabledUsers = userProfiles.filter((profile) => profile.is_active && profile.first_login_at).length;
 
   const kpis = [
     { id: "active-users", title: "Usuarios activos", value: activeProfileIds.size, detail: `de ${enabledUsers} usuarios habilitados`, changePercent: percentageChange(activeProfileIds.size, previousActiveProfileIds.size), tone: "blue" as const, icon: "users" as const },
@@ -76,20 +79,24 @@ export async function getAdminActivityMetrics(range: MetricsRange, sectionId: st
   }).sort((a, b) => b.visits - a.visits).slice(0, 5).map((section, index) => ({ ...section, color: sectionColors[index % sectionColors.length] }));
 
   const topResources = buildTopResources(currentEvents, resources, sectionById, firstFileKind, sectionId);
-  const activePeople = people.filter((person) => person.is_active);
+  const adminPersonIds = new Set(profiles.filter((profile) => profile.role === "admin" && profile.directory_person_id).map((profile) => profile.directory_person_id));
+  const activePeople = people.filter((person) => person.is_active && !adminPersonIds.has(person.id));
+  const activePersonIds = new Set(activePeople.map((person) => person.id));
   const noActivityThreshold = Date.now() - 30 * 24 * 60 * 60 * 1000;
-  const activeProfiles = profiles.filter((profile) => profile.is_active);
-  const noActivity = activeProfiles.filter((profile) => !profile.last_login_at || new Date(profile.last_login_at).getTime() < noActivityThreshold);
+  const activeProfiles = userProfiles.filter((profile) => profile.is_active && Boolean(profile.directory_person_id && activePersonIds.has(profile.directory_person_id)));
+  const firstLoginProfiles = activeProfiles.filter((profile) => Boolean(profile.first_login_at));
+  const pendingFirstLogin = activeProfiles.filter((profile) => !profile.first_login_at);
+  const noActivity = firstLoginProfiles.filter((profile) => !profile.last_login_at || new Date(profile.last_login_at).getTime() < noActivityThreshold);
   const userStatus = [
-    { value: profiles.length, label: "Usuarios registrados", tone: "blue" as const, icon: "registered" as const },
-    { value: activeProfiles.length, label: "Usuarios habilitados", tone: "green" as const, icon: "active" as const },
-    { value: activeProfiles.filter((profile) => !profile.first_login_at || profile.must_change_password).length, label: "Pendientes de primer ingreso", tone: "yellow" as const, icon: "pending" as const },
+    { value: activePeople.length, label: "Usuarios en el Directorio", tone: "blue" as const, icon: "registered" as const },
+    { value: firstLoginProfiles.length, label: "Usuarios habilitados", tone: "green" as const, icon: "active" as const },
+    { value: pendingFirstLogin.length, label: "Pendientes de primer ingreso", tone: "yellow" as const, icon: "pending" as const },
     { value: noActivity.length, label: "Sin actividad en 30 días", tone: "violet" as const, icon: "inactive" as const },
   ];
-  const lowActivityUsers = noActivity.sort((a, b) => (dateValue(a.last_login_at) - dateValue(b.last_login_at))).slice(0, 5).map((profile) => ({ name: profile.full_name, area: profile.directory_person_id ? personById.get(profile.directory_person_id)?.area ?? "Sin especificar" : "Sin especificar", lastAccess: formatLastAccess(profile.last_login_at) }));
+  const lowActivityUsers = [...pendingFirstLogin, ...noActivity].sort((a, b) => (dateValue(a.last_login_at) - dateValue(b.last_login_at))).slice(0, 5).map((profile) => ({ name: profile.full_name, area: profile.directory_person_id ? personById.get(profile.directory_person_id)?.area ?? "Sin especificar" : "Sin especificar", lastAccess: formatLastAccess(profile.last_login_at) }));
 
   const profilesByArea = new Map<string, ProfileRow[]>();
-  for (const profile of profiles) {
+  for (const profile of userProfiles) {
     const area = profile.directory_person_id ? personById.get(profile.directory_person_id)?.area ?? "Sin especificar" : "Sin especificar";
     profilesByArea.set(area, [...(profilesByArea.get(area) ?? []), profile]);
   }
@@ -98,7 +105,7 @@ export async function getAdminActivityMetrics(range: MetricsRange, sectionId: st
     return { area, users: areaProfiles.length, active, percentage: areaProfiles.length ? Math.round((active / areaProfiles.length) * 100) : 0 };
   }).sort((a, b) => b.active - a.active || b.users - a.users).slice(0, 8);
 
-  const profileByPerson = new Map(profiles.flatMap((profile) => profile.directory_person_id ? [[profile.directory_person_id, profile] as const] : []));
+  const profileByPerson = new Map(userProfiles.flatMap((profile) => profile.directory_person_id ? [[profile.directory_person_id, profile] as const] : []));
   const completeProfiles = activePeople.filter((person) => Boolean(person.phone && person.email && person.gcba_building)).length;
   const directoryStatus = [
     { value: activePeople.length, label: "Integrantes totales", icon: "users" as const, tone: "blue" as const },

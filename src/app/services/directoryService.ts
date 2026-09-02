@@ -3,6 +3,7 @@ import type {
   DirectoryFilterOption,
   DirectoryFilterOptions,
   DirectoryLinkType,
+  DirectoryOrganizationUnit,
   DirectoryPersonDetail,
   DirectoryPersonSummary,
   DirectoryQuery,
@@ -45,16 +46,24 @@ type ProfileSummaryRow = {
   avatar_path: string | null;
 };
 
+type OrganizationUnitRow = {
+  id: string;
+  name: string;
+  parent_id: string | null;
+  depth: number;
+};
+
 export async function getDirectoryFilterOptions(includeInactive = false): Promise<DirectoryFilterOptions> {
-  let peopleQuery = supabase.from("directory_people").select("id,area,gcba_building,is_active");
+  let peopleQuery = supabase.from("directory_people").select("id,area,gcba_building,is_active,organization_unit_id");
   if (!includeInactive) peopleQuery = peopleQuery.eq("is_active", true);
-  const [peopleResult, linkTypesResult, personLinksResult] = await Promise.all([
+  const [peopleResult, linkTypesResult, personLinksResult, organizationResult] = await Promise.all([
     peopleQuery,
     supabase.from("link_types").select("id,name,color,sort_order").eq("is_active", true).order("sort_order"),
     supabase.from("directory_person_link_types").select("person_id,link_type_id"),
+    supabase.from("organization_units").select("id,name,parent_id,depth").eq("is_active", true).order("name"),
   ]);
 
-  const firstError = peopleResult.error || linkTypesResult.error || personLinksResult.error;
+  const firstError = peopleResult.error || linkTypesResult.error || personLinksResult.error || organizationResult.error;
   if (firstError) throw toServiceError(firstError, "No se pudieron cargar los filtros del Directorio.");
   const people = peopleResult.data;
   const visiblePersonIds = new Set(people.map((person) => person.id));
@@ -65,6 +74,7 @@ export async function getDirectoryFilterOptions(includeInactive = false): Promis
   return {
     total: people.length,
     areas: toFilterOptions(people.map((person) => person.area)),
+    organizationUnits: buildOrganizationOptions(organizationResult.data as OrganizationUnitRow[], people.map((person) => person.organization_unit_id)),
     buildings: toFilterOptions(people.flatMap((person) => (person.gcba_building ? [person.gcba_building] : []))),
     statuses: [
       { value: "active", label: "Activos", count: people.filter((person) => person.is_active).length },
@@ -99,7 +109,13 @@ export async function searchDirectory(query: DirectoryQuery): Promise<DirectoryR
   if (!query.includeInactive) peopleQuery = peopleQuery.eq("is_active", true);
   if (query.status === "active") peopleQuery = peopleQuery.eq("is_active", true);
   if (query.status === "inactive") peopleQuery = peopleQuery.eq("is_active", false);
-  if (query.area) peopleQuery = peopleQuery.eq("area", query.area);
+  if (query.organizationUnitId) {
+    const organizationIds = query.organizationExact
+      ? [query.organizationUnitId]
+      : await getOrganizationUnitTreeIds(query.organizationUnitId);
+    if (!organizationIds.length) return { people: [], filteredTotal: 0 };
+    peopleQuery = peopleQuery.in("organization_unit_id", organizationIds);
+  }
   if (query.building) peopleQuery = peopleQuery.eq("gcba_building", query.building);
   if (allowedPersonIds) peopleQuery = peopleQuery.in("id", allowedPersonIds);
 
@@ -278,6 +294,36 @@ function toFilterOptions(values: string[]): DirectoryFilterOption[] {
   return [...counts.entries()]
     .map(([value, count]) => ({ value, label: value, count }))
     .sort((first, second) => first.label.localeCompare(second.label, "es-AR"));
+}
+
+function buildOrganizationOptions(units: OrganizationUnitRow[], personUnitIds: Array<string | null>): DirectoryOrganizationUnit[] {
+  const byId = new Map(units.map((unit) => [unit.id, unit]));
+  const counts = new Map<string, number>();
+  for (const unitId of personUnitIds) {
+    let current = unitId ? byId.get(unitId) : null;
+    while (current) {
+      counts.set(current.id, (counts.get(current.id) ?? 0) + 1);
+      current = current.parent_id ? byId.get(current.parent_id) : null;
+    }
+  }
+  return units.map((unit) => ({ id: unit.id, name: unit.name, parentId: unit.parent_id, depth: unit.depth, count: counts.get(unit.id) ?? 0 }));
+}
+
+async function getOrganizationUnitTreeIds(rootId: string) {
+  const { data, error } = await supabase.from("organization_units").select("id,parent_id").eq("is_active", true);
+  if (error) throw toServiceError(error, "No se pudo aplicar el filtro de organización.");
+  const selected = new Set([rootId]);
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const unit of data) {
+      if (unit.parent_id && selected.has(unit.parent_id) && !selected.has(unit.id)) {
+        selected.add(unit.id);
+        changed = true;
+      }
+    }
+  }
+  return data.some((unit) => unit.id === rootId) ? [...selected] : [];
 }
 
 function countValues(values: string[]) {
