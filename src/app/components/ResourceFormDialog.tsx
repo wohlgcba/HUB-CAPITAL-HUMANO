@@ -6,7 +6,7 @@ import { inferResourceFileKind } from "../services/storageService";
 import type { ResourceFileKind, ResourceInput, SectionResource } from "../types/resources";
 import { AdminForm } from "./AdminForm";
 import { AdminField, AdminSwitch, adminInputClass, adminTextAreaClass } from "./AdminFormFields";
-import { ImageCropField } from "./ImageCropField";
+import { ImageCropDialog, ImageCropField, type ImageCropSource } from "./ImageCropField";
 
 type ResourceFormDialogProps = {
   open: boolean;
@@ -39,12 +39,14 @@ export function ResourceFormDialog({
   const [form, setForm] = useState<ResourceFormState>(() => createInitialState(resource, initialSectionId));
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
+  const [imageSource, setImageSource] = useState<ImageCropSource | null>(null);
 
   useEffect(() => {
     if (!open) return;
     setForm(createInitialState(resource, initialSectionId));
     setErrors({});
     setLoading(false);
+    setImageSource(null);
   }, [initialSectionId, open, resource]);
 
   const update = <K extends keyof ResourceFormState>(key: K, value: ResourceFormState[K]) => {
@@ -53,6 +55,14 @@ export function ResourceFormDialog({
   };
 
   const handleFileChange = (file: File | null) => {
+    if (file && inferResourceFileKind(file) === "image") {
+      if (file.size > 10 * 1024 * 1024) {
+        setErrors((current) => ({ ...current, file: "La imagen no puede superar los 10 MB." }));
+        return;
+      }
+      setImageSource({ file, url: URL.createObjectURL(file) });
+      return;
+    }
     setForm((current) => ({ ...current, file, fileKind: file ? inferResourceFileKind(file) : current.fileKind }));
     setErrors((current) => ({ ...current, file: "" }));
   };
@@ -121,10 +131,10 @@ export function ResourceFormDialog({
           <AdminField
             label={resource ? "Reemplazar archivo" : "Archivo"}
             required={!resource}
-            hint={currentFile ? `Archivo actual: ${currentFile.fileName}. Si elegís otro, se reemplazará después de guardar correctamente.` : "PDF, PPTX, DOCX o XLSX. Máximo 50 MB."}
+            hint={currentFile ? `Archivo actual: ${currentFile.fileName}. Si elegís otro, se reemplazará después de guardar correctamente.` : "PDF, PPTX, DOCX, XLSX o imagen. Las imágenes se encuadran antes de guardar."}
             error={errors.file}
           >
-            <input type="file" accept=".pdf,.ppt,.pptx,.doc,.docx,.xls,.xlsx" onChange={(event) => handleFileChange(event.target.files?.[0] ?? null)} className={`${adminInputClass} cursor-pointer py-2 file:mr-3 file:rounded-[5px] file:border-0 file:bg-[#EAF4FB] file:px-3 file:py-1.5 file:text-[12px] file:font-extrabold file:text-[#005CB9]`} />
+            <input type="file" accept=".pdf,.ppt,.pptx,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp" onChange={(event) => { handleFileChange(event.target.files?.[0] ?? null); event.currentTarget.value = ""; }} className={`${adminInputClass} cursor-pointer py-2 file:mr-3 file:rounded-[5px] file:border-0 file:bg-[#EAF4FB] file:px-3 file:py-1.5 file:text-[12px] file:font-extrabold file:text-[#005CB9]`} />
           </AdminField>
         </div>
         <div className="sm:col-span-2">
@@ -141,6 +151,7 @@ export function ResourceFormDialog({
         <AdminSwitch checked={form.allowDownload} onChange={(checked) => update("allowDownload", checked)} label="Permitir descarga" description="Los integrantes podrán descargar el archivo." />
         <AdminSwitch checked={form.isActive} onChange={(checked) => update("isActive", checked)} label={form.isActive ? "Publicado" : "Borrador"} description={form.isActive ? "Visible para los integrantes." : "Visible solo en administración."} />
       </div>
+      {imageSource ? <ImageCropDialog source={imageSource} onCancel={() => { URL.revokeObjectURL(imageSource.url); setImageSource(null); }} onConfirm={(file) => { setForm((current) => ({ ...current, file, fileKind: "image" })); setErrors((current) => ({ ...current, file: "" })); URL.revokeObjectURL(imageSource.url); setImageSource(null); }} /> : null}
     </AdminForm>
   );
 }

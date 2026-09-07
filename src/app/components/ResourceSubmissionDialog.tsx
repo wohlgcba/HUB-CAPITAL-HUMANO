@@ -2,9 +2,10 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { submitNovedadesResource } from "../services/communityService";
 import { getErrorMessage } from "../services/serviceError";
-import { validateResourceFile } from "../services/storageService";
+import { inferResourceFileKind, validateResourceFile } from "../services/storageService";
 import { AdminForm } from "./AdminForm";
 import { AdminField, adminInputClass, adminTextAreaClass } from "./AdminFormFields";
+import { ImageCropDialog, type ImageCropSource } from "./ImageCropField";
 
 type ResourceSubmissionDialogProps = {
   open: boolean;
@@ -24,6 +25,7 @@ export function ResourceSubmissionDialog({
   const [file, setFile] = useState<File | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
+  const [imageSource, setImageSource] = useState<ImageCropSource | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -32,6 +34,7 @@ export function ResourceSubmissionDialog({
     setFile(null);
     setErrors({});
     setLoading(false);
+    setImageSource(null);
   }, [open]);
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -64,6 +67,14 @@ export function ResourceSubmissionDialog({
   };
 
   const handleFileChange = (nextFile: File | null) => {
+    if (nextFile && inferResourceFileKind(nextFile) === "image") {
+      if (nextFile.size > 10 * 1024 * 1024) {
+        setErrors((current) => ({ ...current, file: "La imagen no puede superar los 10 MB." }));
+        return;
+      }
+      setImageSource({ file: nextFile, url: URL.createObjectURL(nextFile) });
+      return;
+    }
     setFile(nextFile);
     setErrors((current) => ({ ...current, file: "" }));
   };
@@ -103,13 +114,13 @@ export function ResourceSubmissionDialog({
         <AdminField
           label="Archivo"
           required
-          hint="PDF, PPTX, DOCX o XLSX. Máximo 50 MB."
+          hint="PDF, PPTX, DOCX, XLSX o imagen. Las imágenes se encuadran antes de enviar."
           error={errors.file}
         >
           <input
             type="file"
-            accept=".pdf,.ppt,.pptx,.doc,.docx,.xls,.xlsx"
-            onChange={(event) => handleFileChange(event.target.files?.[0] ?? null)}
+            accept=".pdf,.ppt,.pptx,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.webp,image/png,image/jpeg,image/webp"
+            onChange={(event) => { handleFileChange(event.target.files?.[0] ?? null); event.currentTarget.value = ""; }}
             className={`${adminInputClass} cursor-pointer py-2 file:mr-3 file:rounded-[5px] file:border-0 file:bg-[#EAF4FB] file:px-3 file:py-1.5 file:text-[12px] file:font-extrabold file:text-[#005CB9]`}
           />
         </AdminField>
@@ -117,6 +128,7 @@ export function ResourceSubmissionDialog({
           La propuesta no será visible para otros integrantes hasta su aprobación.
         </p>
       </div>
+      {imageSource ? <ImageCropDialog source={imageSource} onCancel={() => { URL.revokeObjectURL(imageSource.url); setImageSource(null); }} onConfirm={(croppedFile) => { setFile(croppedFile); setErrors((current) => ({ ...current, file: "" })); URL.revokeObjectURL(imageSource.url); setImageSource(null); }} /> : null}
     </AdminForm>
   );
 }

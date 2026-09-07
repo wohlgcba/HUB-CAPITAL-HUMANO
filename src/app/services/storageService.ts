@@ -90,7 +90,7 @@ export function validateSectionBanner(file: File) {
 
 export function validateResourceFile(file: File) {
   const kind = inferResourceFileKind(file);
-  if (!kind || kind === "other") throw new Error("El archivo debe ser PDF, PPTX, DOCX o XLSX.");
+  if (!kind || kind === "other") throw new Error("El archivo debe ser PDF, PPTX, DOCX, XLSX, JPG, PNG o WEBP.");
   if (file.size > resourceFileLimit) throw new Error("El archivo no puede superar los 50 MB.");
   return kind;
 }

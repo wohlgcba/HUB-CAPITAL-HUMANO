@@ -14,11 +14,12 @@ type Props = {
 };
 
 type Position = { x: number; y: number };
+export type ImageCropSource = { file: File; url: string };
 
 export function ImageCropField({ label, currentUrl = null, value, disabled = false, error, onChange }: Props) {
   const inputId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
-  const [source, setSource] = useState<{ file: File; url: string } | null>(null);
+  const [source, setSource] = useState<ImageCropSource | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   useEffect(() => {
@@ -60,7 +61,7 @@ export function ImageCropField({ label, currentUrl = null, value, disabled = fal
   </div>;
 }
 
-function ImageCropDialog({ source, onCancel, onConfirm }: { source: { file: File; url: string }; onCancel: () => void; onConfirm: (file: File) => void }) {
+export function ImageCropDialog({ source, onCancel, onConfirm }: { source: ImageCropSource; onCancel: () => void; onConfirm: (file: File) => void }) {
   const dialogRef = useRef<HTMLDivElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
   const [zoom, setZoom] = useState(1);

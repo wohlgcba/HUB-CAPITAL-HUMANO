@@ -14,6 +14,10 @@ const fileKinds = {
   docx: { kind: "word", mime: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" },
   xls: { kind: "spreadsheet", mime: "application/vnd.ms-excel" },
   xlsx: { kind: "spreadsheet", mime: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" },
+  png: { kind: "image", mime: "image/png" },
+  jpg: { kind: "image", mime: "image/jpeg" },
+  jpeg: { kind: "image", mime: "image/jpeg" },
+  webp: { kind: "image", mime: "image/webp" },
 } as const;
 
 type AppRole = "user" | "admin";
