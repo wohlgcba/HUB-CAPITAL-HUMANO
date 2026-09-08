@@ -4,7 +4,7 @@ import type { RecentResource } from "../types/resources";
 export function ResourceCard({ resource, onOpen }: { resource: RecentResource; onOpen: () => void }) {
   const file = resource.files[0];
   const thumbnailUrl = resource.coverImageUrl ?? file?.thumbnailUrl ?? null;
-  const type = file ? formatFileKind(file.fileKind) : "SIN ARCHIVO";
+  const type = file ? formatFileKind(file.fileKind) : resource.coverImagePath ? "IMG" : "SIN ARCHIVO";
 
   return (
     <div className="min-w-[220px] flex-1 snap-start lg:min-w-0">

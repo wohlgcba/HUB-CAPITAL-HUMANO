@@ -139,7 +139,7 @@ export function AdminHubPage() {
                   <tr key={resource.id} className="border-t border-[#E8EDF0] text-[13px] font-semibold text-[#153244]">
                     <td className="max-w-[280px] px-5 py-3"><span className="block truncate font-extrabold">{resource.title}</span></td>
                     <td className="px-4 py-3">{resource.sectionTitle || "Sin sección"}</td>
-                    <td className="px-4 py-3">{resource.files[0] ? formatFileKind(resource.files[0].fileKind) : "Sin archivo"}</td>
+                    <td className="px-4 py-3">{resource.files[0] ? formatFileKind(resource.files[0].fileKind) : resource.coverImagePath ? "IMG" : "Sin archivo"}</td>
                     <td className="px-4 py-3"><StatusPill active={resource.isActive} /></td>
                     <td className="px-4 py-3 text-[#5F6B76]">{formatDate(resource.updatedAt)}</td>
                     <td className="px-5 py-3"><div className="flex justify-end gap-2"><button type="button" onClick={() => openResourceForm(resource.sectionId, resource)} className="inline-flex min-h-10 items-center gap-1.5 rounded-[6px] border border-[#0072BC] px-3 text-[12px] font-extrabold text-[#0072BC]"><AppIcon name="edit" size={16} />Editar contenido</button><button type="button" onClick={() => setDeleteTarget(resource)} aria-label={`Eliminar ${resource.title}`} className="flex h-10 w-10 items-center justify-center rounded-[6px] border border-[#E3B0B0] text-[#B52F2F]"><AppIcon name="trash" size={17} /></button></div></td>

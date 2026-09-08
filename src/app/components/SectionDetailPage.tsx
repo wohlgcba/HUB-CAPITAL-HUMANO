@@ -444,7 +444,7 @@ function SectionResourceCard({
   onDelete: () => void;
 }) {
   const file = resource.files[0];
-  const kind = file?.fileKind ?? "other";
+  const kind = file?.fileKind ?? (resource.coverImagePath ? "image" : "other");
   const style = formatStyles[kind];
   const statusLabel = resource.isActive ? "Publicado" : isSubmissionSection ? "Pendiente de revisión" : "Borrador";
   return (
@@ -455,7 +455,7 @@ function SectionResourceCard({
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <span className={`rounded-[5px] px-2 py-1 text-[12px] font-extrabold leading-none ${style.labelClass}`}>{file ? formatFileKind(kind) : "SIN ARCHIVO"}</span>
+            <span className={`rounded-[5px] px-2 py-1 text-[12px] font-extrabold leading-none ${style.labelClass}`}>{file ? formatFileKind(kind) : resource.coverImagePath ? "IMG" : "SIN ARCHIVO"}</span>
             {file ? <span className="text-[12px] font-bold text-[#5F6B76]">{formatFileSize(file.fileSizeBytes)}</span> : null}
             {resource.isFeatured ? <span className="rounded-[5px] bg-[#FFCC00] px-2 py-1 text-[12px] font-extrabold">Destacado</span> : null}
             {isAdmin ? <span className={`rounded-[5px] px-2 py-1 text-[12px] font-extrabold ${resource.isActive ? "bg-[#DDF8F5] text-[#006F73]" : "bg-[#FFF1C2] text-[#735B00]"}`}>{statusLabel}</span> : null}
