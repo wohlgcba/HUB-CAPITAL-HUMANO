@@ -173,7 +173,7 @@ export function ResourceViewerPage() {
               ))}
             </div>
           ) : (
-            <p className="mt-3 text-[13px] font-semibold text-[#5F6B76]">Este recurso no tiene archivos publicados.</p>
+            resource.coverImageUrl ? <div className="mt-3 rounded-[7px] border border-[#153244] bg-[#DDF8F5] px-3 py-2"><span className="block text-[12px] font-extrabold text-[#153244]">Imagen del recurso</span><span className="mt-1 block text-[10px] font-semibold text-[#5F6B76]">IMG</span></div> : <p className="mt-3 text-[13px] font-semibold text-[#5F6B76]">Este recurso no tiene archivos publicados.</p>
           )}
         </aside>
 
@@ -209,6 +209,15 @@ export function ResourceViewerPage() {
               <div className={isFullscreen ? "min-h-0 flex-1" : ""}>
                 <FilePreview file={selectedFile} isFullscreen={isFullscreen} />
               </div>
+              {actionError ? <p role="alert" className="mt-4 rounded-[8px] bg-[#FFF4F4] px-4 py-3 text-[13px] font-bold text-[#C93B3B]">{actionError}</p> : null}
+            </>
+          ) : resource.coverImageUrl ? (
+            <>
+              <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0"><h2 className="truncate text-[17px] font-extrabold text-[#153244]">Imagen del recurso</h2><p className="mt-1 text-[12px] font-semibold text-[#5F6B76]">IMG</p></div>
+                <button type="button" onClick={() => void handleToggleFullscreen()} aria-label={isFullscreen ? "Salir de pantalla completa" : "Ver en pantalla completa"} aria-pressed={isFullscreen} title={isFullscreen ? "Salir de pantalla completa" : "Ver en pantalla completa"} className="inline-flex size-11 items-center justify-center rounded-[6px] border border-[#0072BC] text-[#0072BC] transition-colors hover:bg-[#EAF6FD] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#153244]"><AppIcon name={isFullscreen ? "minimize" : "maximize"} size={20} /></button>
+              </div>
+              <div className={`flex items-center justify-center rounded-[8px] bg-[#F5F7F8] p-4 ${isFullscreen ? "min-h-0 flex-1" : "min-h-[420px]"}`}><img src={resource.coverImageUrl} alt={resource.title} className={`${isFullscreen ? "max-h-full" : "max-h-[70dvh]"} max-w-full object-contain`} /></div>
               {actionError ? <p role="alert" className="mt-4 rounded-[8px] bg-[#FFF4F4] px-4 py-3 text-[13px] font-bold text-[#C93B3B]">{actionError}</p> : null}
             </>
           ) : (
