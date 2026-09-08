@@ -3,7 +3,9 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 const resourceBucket = "resource-files";
+const coverBucket = "resource-covers";
 const resourceFileLimit = 50 * 1024 * 1024;
+const coverFileLimit = 10 * 1024 * 1024;
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const reactionChoices = ["💖", "👍", "🎉", "👏", "😂", "😮", "😢", "🤔", "👎"] as const;
 const fileKinds = {
@@ -27,9 +29,10 @@ type FileData = { fileName: string; fileSize: number; fileKind: ResourceFileKind
 
 type RequestBody =
   | { action: "prepare-upload"; sectionId: unknown; fileName: unknown; fileSize: unknown }
-  | { action: "complete-submission"; sectionId: unknown; resourceId: unknown; storagePath: unknown; title: unknown; description: unknown; fileName: unknown; fileSize: unknown }
+  | { action: "prepare-cover-upload"; sectionId: unknown; resourceId: unknown; fileName: unknown; fileSize: unknown }
+  | { action: "complete-submission"; sectionId: unknown; resourceId: unknown; storagePath?: unknown; title: unknown; description: unknown; fileName?: unknown; fileSize?: unknown; coverStoragePath?: unknown; coverFileName?: unknown; coverFileSize?: unknown }
   | { action: "create-submission"; sectionId: unknown; title: unknown; description: unknown }
-  | { action: "cancel-upload"; resourceId: unknown; storagePath: unknown }
+  | { action: "cancel-upload"; resourceId: unknown; storagePath: unknown; uploadKind?: unknown }
   | { action: "get-reactions"; resourceIds: unknown }
   | { action: "set-reaction"; resourceId: unknown; emoji: unknown };
 
@@ -84,18 +87,42 @@ export default async function handler(request: VercelRequest, response: VercelRe
         if (error || !data?.token) throw new ApiError("No se pudo preparar la subida del archivo.", 500, "UPLOAD_PREPARE_FAILED");
         return response.status(200).json({ resourceId, storagePath, token: data.token, fileKind: file.fileKind, contentType: file.contentType });
       }
+      case "prepare-cover-upload": {
+        requireStandardUser(caller);
+        const sectionId = requireUuid(body.sectionId, "La seccion indicada no es valida.");
+        await requireNovedadesSection(adminClient, sectionId);
+        const file = validateCoverFile(body.fileName, body.fileSize);
+        const resourceId = body.resourceId === null || body.resourceId === undefined
+          ? randomUUID()
+          : requireUuid(body.resourceId, "El recurso indicado no es valido.");
+        const storagePath = createSubmissionPath(caller.profileId, resourceId, file.fileName);
+        const { data, error } = await adminClient.storage.from(coverBucket).createSignedUploadUrl(storagePath, { upsert: false });
+        if (error || !data?.token) throw new ApiError("No se pudo preparar la subida de la imagen.", 500, "UPLOAD_PREPARE_FAILED");
+        return response.status(200).json({ resourceId, storagePath, token: data.token, fileKind: file.fileKind, contentType: file.contentType });
+      }
       case "complete-submission": {
         requireStandardUser(caller);
         const sectionId = requireUuid(body.sectionId, "La sección indicada no es válida.");
         const resourceId = requireUuid(body.resourceId, "El recurso indicado no es válido.");
-        const storagePath = requiredText(body.storagePath, "La ruta del archivo no es válida.", 900);
         const title = requiredText(body.title, "Ingresá el título del recurso.", 220);
         const description = nullableText(body.description, 1000);
-        const file = validateFile(body.fileName, body.fileSize);
         await requireNovedadesSection(adminClient, sectionId);
-        assertOwnedStoragePath(storagePath, caller.profileId, resourceId);
-        await requireUploadedObject(adminClient, storagePath, file.fileSize);
-        await createSubmission(adminClient, caller, { sectionId, resourceId, storagePath, title, description, ...file });
+        const hasFile = body.storagePath !== undefined || body.fileName !== undefined || body.fileSize !== undefined;
+        const hasCover = body.coverStoragePath !== undefined || body.coverFileName !== undefined || body.coverFileSize !== undefined;
+        const file = hasFile ? validateFile(body.fileName, body.fileSize) : null;
+        const storagePath = hasFile ? requiredText(body.storagePath, "La ruta del archivo no es válida.", 900) : undefined;
+        const cover = hasCover ? validateCoverFile(body.coverFileName, body.coverFileSize) : null;
+        const coverPath = hasCover ? requiredText(body.coverStoragePath, "La ruta de la imagen no es válida.", 900) : undefined;
+        if (!file && !cover) throw new ApiError("Seleccioná un archivo o una imagen de portada.", 422, "MISSING_UPLOAD");
+        if (file && storagePath) {
+          assertOwnedStoragePath(storagePath, caller.profileId, resourceId);
+          await requireUploadedObject(adminClient, resourceBucket, storagePath, file.fileSize, resourceFileLimit);
+        }
+        if (cover && coverPath) {
+          assertOwnedStoragePath(coverPath, caller.profileId, resourceId);
+          await requireUploadedObject(adminClient, coverBucket, coverPath, cover.fileSize, coverFileLimit);
+        }
+        await createSubmission(adminClient, caller, { sectionId, resourceId, storagePath, coverPath, title, description, ...(file ?? {}) });
         return response.status(201).json({ resourceId });
       }
       case "create-submission": {
@@ -112,15 +139,19 @@ export default async function handler(request: VercelRequest, response: VercelRe
         const resourceId = requireUuid(body.resourceId, "El recurso indicado no es válido.");
         const storagePath = requiredText(body.storagePath, "La ruta del archivo no es válida.", 900);
         assertOwnedStoragePath(storagePath, caller.profileId, resourceId);
+        const bucket = body.uploadKind === "cover" ? coverBucket : resourceBucket;
+        const source = bucket === coverBucket ? "section_resources" : "resource_files";
+        const resourceColumn = bucket === coverBucket ? "id" : "resource_id";
+        const pathColumn = bucket === coverBucket ? "cover_image_path" : "storage_path";
         const { data: registeredFile, error: registeredFileError } = await adminClient
-          .from("resource_files")
+          .from(source)
           .select("id")
-          .eq("resource_id", resourceId)
-          .eq("storage_path", storagePath)
+          .eq(resourceColumn, resourceId)
+          .eq(pathColumn, storagePath)
           .maybeSingle();
         if (registeredFileError) throw new ApiError("No se pudo comprobar el estado del archivo.", 500, "UPLOAD_STATE_FAILED");
         if (registeredFile) return response.status(200).json({ removed: false });
-        await adminClient.storage.from(resourceBucket).remove([storagePath]);
+        await adminClient.storage.from(bucket).remove([storagePath]);
         return response.status(200).json({ removed: true });
       }
       case "get-reactions": {
@@ -200,20 +231,21 @@ async function requirePublishedResource(adminClient: SupabaseClient, resourceId:
 async function createSubmission(
   adminClient: SupabaseClient,
   caller: Caller,
-  input: Partial<FileData> & { sectionId: string; resourceId: string; storagePath?: string; title: string; description: string | null },
+  input: Partial<FileData> & { sectionId: string; resourceId: string; storagePath?: string; coverPath?: string; title: string; description: string | null },
 ) {
   const { error: resourceError } = await adminClient.from("section_resources").insert({
     id: input.resourceId,
     section_id: input.sectionId,
     title: input.title,
     description: input.description,
+    cover_image_path: input.coverPath ?? null,
     thumbnail_strategy: "auto_from_first_file",
     is_featured: false,
     is_active: false,
     published_at: new Date().toISOString(),
   });
   if (resourceError) {
-    if (input.storagePath) await adminClient.storage.from(resourceBucket).remove([input.storagePath]);
+    await removeSubmissionUploads(adminClient, input.storagePath, input.coverPath);
     throw new ApiError("No se pudo registrar la propuesta.", 409, "SUBMISSION_CREATE_FAILED");
   }
 
@@ -231,7 +263,7 @@ async function createSubmission(
     });
     if (fileError) {
       await adminClient.from("section_resources").delete().eq("id", input.resourceId);
-      await adminClient.storage.from(resourceBucket).remove([input.storagePath]);
+      await removeSubmissionUploads(adminClient, input.storagePath, input.coverPath);
       throw new ApiError("No se pudo vincular el archivo con la propuesta.", 409, "SUBMISSION_FILE_FAILED");
     }
   }
@@ -258,16 +290,23 @@ async function createSubmission(
   ]);
 }
 
-async function requireUploadedObject(adminClient: SupabaseClient, storagePath: string, expectedSize: number) {
+async function removeSubmissionUploads(adminClient: SupabaseClient, storagePath?: string, coverPath?: string) {
+  await Promise.all([
+    storagePath ? adminClient.storage.from(resourceBucket).remove([storagePath]) : Promise.resolve(),
+    coverPath ? adminClient.storage.from(coverBucket).remove([coverPath]) : Promise.resolve(),
+  ]);
+}
+
+async function requireUploadedObject(adminClient: SupabaseClient, bucket: string, storagePath: string, expectedSize: number, sizeLimit: number) {
   const separator = storagePath.lastIndexOf("/");
   const directory = storagePath.slice(0, separator);
   const fileName = storagePath.slice(separator + 1);
-  const { data, error } = await adminClient.storage.from(resourceBucket).list(directory, { limit: 10, search: fileName });
+  const { data, error } = await adminClient.storage.from(bucket).list(directory, { limit: 10, search: fileName });
   const storedFile = data?.find((item) => item.name === fileName);
   if (error || !storedFile) throw new ApiError("El archivo todavía no está disponible en Storage.", 409, "UPLOAD_NOT_FOUND");
   const storedSize = Number(storedFile.metadata?.size ?? expectedSize);
-  if (!Number.isFinite(storedSize) || storedSize <= 0 || storedSize > resourceFileLimit) {
-    await adminClient.storage.from(resourceBucket).remove([storagePath]);
+  if (!Number.isFinite(storedSize) || storedSize <= 0 || storedSize > sizeLimit) {
+    await adminClient.storage.from(bucket).remove([storagePath]);
     throw new ApiError("El archivo subido no es válido.", 422, "INVALID_FILE_SIZE");
   }
 }
@@ -340,7 +379,7 @@ function parseBody(body: unknown): RequestBody {
   const parsed = typeof body === "string" ? safeJsonParse(body) : body;
   if (!parsed || typeof parsed !== "object" || !("action" in parsed)) throw new ApiError("La solicitud no es válida.");
   const action = (parsed as { action?: unknown }).action;
-  if (!["prepare-upload", "complete-submission", "create-submission", "cancel-upload", "get-reactions", "set-reaction"].includes(String(action))) {
+  if (!["prepare-upload", "prepare-cover-upload", "complete-submission", "create-submission", "cancel-upload", "get-reactions", "set-reaction"].includes(String(action))) {
     throw new ApiError("La acción indicada no es válida.");
   }
   return parsed as RequestBody;
@@ -361,6 +400,13 @@ function validateFile(fileNameValue: unknown, fileSizeValue: unknown): FileData 
   if (!definition) throw new ApiError("El archivo debe ser PDF, PPTX, DOCX o XLSX.", 422, "INVALID_FILE_TYPE");
   if (!Number.isInteger(fileSize) || fileSize <= 0 || fileSize > resourceFileLimit) throw new ApiError("El archivo no puede superar los 50 MB.", 422, "INVALID_FILE_SIZE");
   return { fileName, fileSize, fileKind: definition.kind, contentType: definition.mime };
+}
+
+function validateCoverFile(fileNameValue: unknown, fileSizeValue: unknown): FileData {
+  const file = validateFile(fileNameValue, fileSizeValue);
+  if (file.fileKind !== "image") throw new ApiError("La portada debe ser JPG, PNG o WEBP.", 422, "INVALID_COVER_TYPE");
+  if (file.fileSize > coverFileLimit) throw new ApiError("La imagen de portada no puede superar los 10 MB.", 422, "INVALID_COVER_SIZE");
+  return file;
 }
 
 function createSubmissionPath(profileId: string, resourceId: string, fileName: string) {

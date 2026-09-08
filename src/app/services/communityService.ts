@@ -5,9 +5,10 @@ import type {
   ResourceReactionSummary,
 } from "../types/resources";
 import { AppServiceError } from "./serviceError";
-import { validateResourceFile } from "./storageService";
+import { validateResourceFile, validateSectionBanner } from "./storageService";
 
 const resourceBucket = "resource-files";
+const coverBucket = "resource-covers";
 
 type PreparedUpload = {
   resourceId: string;
@@ -21,8 +22,9 @@ export async function submitNovedadesResource(input: {
   title: string;
   description: string | null;
   file: File | null;
+  coverFile: File | null;
 }) {
-  if (!input.file) {
+  if (!input.file && !input.coverFile) {
     const created = await requestCommunity<{ resourceId: string }>({
       action: "create-submission",
       sectionId: input.sectionId,
@@ -31,40 +33,80 @@ export async function submitNovedadesResource(input: {
     });
     return created.resourceId;
   }
-  validateResourceFile(input.file);
-  const prepared = await requestCommunity<PreparedUpload>({
-    action: "prepare-upload",
-    sectionId: input.sectionId,
-    fileName: input.file.name,
-    fileSize: input.file.size,
-  });
+  if (input.file) validateResourceFile(input.file);
+  if (input.coverFile) validateSectionBanner(input.coverFile);
 
-  const { error: uploadError } = await supabase.storage
-    .from(resourceBucket)
-    .uploadToSignedUrl(prepared.storagePath, prepared.token, input.file, {
-      cacheControl: "3600",
-      contentType: prepared.contentType,
+  let fileUpload: PreparedUpload | null = null;
+  let coverUpload: PreparedUpload | null = null;
+  try {
+    if (input.file) {
+      fileUpload = await requestCommunity<PreparedUpload>({
+        action: "prepare-upload",
+        sectionId: input.sectionId,
+        fileName: input.file.name,
+        fileSize: input.file.size,
+      });
+    }
+    if (input.coverFile) {
+      coverUpload = await requestCommunity<PreparedUpload>({
+        action: "prepare-cover-upload",
+        sectionId: input.sectionId,
+        resourceId: fileUpload?.resourceId ?? null,
+        fileName: input.coverFile.name,
+        fileSize: input.coverFile.size,
+      });
+    }
+
+    const resourceId = fileUpload?.resourceId ?? coverUpload?.resourceId;
+    if (!resourceId || (fileUpload && coverUpload && fileUpload.resourceId !== coverUpload.resourceId)) {
+      throw new AppServiceError("No se pudo preparar la propuesta.", "UPLOAD_PREPARE_FAILED");
+    }
+
+    if (input.file && fileUpload) await uploadWithSignedUrl(resourceBucket, fileUpload, input.file, "archivo");
+    if (input.coverFile && coverUpload) await uploadWithSignedUrl(coverBucket, coverUpload, input.coverFile, "imagen de portada");
+
+    await requestCommunity<{ resourceId: string }>({
+      action: "complete-submission",
+      sectionId: input.sectionId,
+      resourceId,
+      title: input.title,
+      description: input.description,
+      ...(fileUpload && input.file ? {
+        storagePath: fileUpload.storagePath,
+        fileName: input.file.name,
+        fileSize: input.file.size,
+      } : {}),
+      ...(coverUpload && input.coverFile ? {
+        coverStoragePath: coverUpload.storagePath,
+        coverFileName: input.coverFile.name,
+        coverFileSize: input.coverFile.size,
+      } : {}),
     });
-  if (uploadError) {
-    await requestCommunity({
-      action: "cancel-upload",
-      resourceId: prepared.resourceId,
-      storagePath: prepared.storagePath,
-    }).catch(() => undefined);
-    throw new AppServiceError("No se pudo subir el archivo.", uploadError.name || "UPLOAD_FAILED");
+    return resourceId;
+  } catch (error) {
+    await Promise.all([
+      fileUpload ? cancelUpload(fileUpload, "file") : Promise.resolve(),
+      coverUpload ? cancelUpload(coverUpload, "cover") : Promise.resolve(),
+    ]);
+    throw error;
   }
+}
 
-  await requestCommunity<{ resourceId: string }>({
-    action: "complete-submission",
-    sectionId: input.sectionId,
+async function uploadWithSignedUrl(bucket: string, prepared: PreparedUpload, file: File, label: string) {
+  const { error } = await supabase.storage.from(bucket).uploadToSignedUrl(prepared.storagePath, prepared.token, file, {
+    cacheControl: "3600",
+    contentType: prepared.contentType,
+  });
+  if (error) throw new AppServiceError(`No se pudo subir el ${label}.`, error.name || "UPLOAD_FAILED");
+}
+
+async function cancelUpload(prepared: PreparedUpload, uploadKind: "file" | "cover") {
+  await requestCommunity({
+    action: "cancel-upload",
     resourceId: prepared.resourceId,
     storagePath: prepared.storagePath,
-    title: input.title,
-    description: input.description,
-    fileName: input.file.name,
-    fileSize: input.file.size,
-  });
-  return prepared.resourceId;
+    uploadKind,
+  }).catch(() => undefined);
 }
 
 export async function getResourceReactions(resourceIds: string[]): Promise<ResourceReactionMap> {

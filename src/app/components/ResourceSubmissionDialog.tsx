@@ -2,10 +2,10 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { submitNovedadesResource } from "../services/communityService";
 import { getErrorMessage } from "../services/serviceError";
-import { inferResourceFileKind, validateResourceFile } from "../services/storageService";
+import { inferResourceFileKind, validateResourceFile, validateSectionBanner } from "../services/storageService";
 import { AdminForm } from "./AdminForm";
 import { AdminField, adminInputClass, adminTextAreaClass } from "./AdminFormFields";
-import { ImageCropDialog, type ImageCropSource } from "./ImageCropField";
+import { ImageCropDialog, ImageCropField, type ImageCropSource } from "./ImageCropField";
 
 type ResourceSubmissionDialogProps = {
   open: boolean;
@@ -23,6 +23,7 @@ export function ResourceSubmissionDialog({
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [file, setFile] = useState<File | null>(null);
+  const [coverFile, setCoverFile] = useState<File | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [imageSource, setImageSource] = useState<ImageCropSource | null>(null);
@@ -32,6 +33,7 @@ export function ResourceSubmissionDialog({
     setTitle("");
     setDescription("");
     setFile(null);
+    setCoverFile(null);
     setErrors({});
     setLoading(false);
     setImageSource(null);
@@ -39,7 +41,7 @@ export function ResourceSubmissionDialog({
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const nextErrors = validateSubmission(title, file);
+    const nextErrors = validateSubmission(title, file, coverFile);
     if (Object.keys(nextErrors).length > 0) {
       setErrors(nextErrors);
       return;
@@ -52,6 +54,7 @@ export function ResourceSubmissionDialog({
         title: title.trim(),
         description: description.trim() || null,
         file,
+        coverFile,
       });
       toast.success("Propuesta enviada", {
         description: "Un administrador debe revisarla antes de publicarla.",
@@ -123,6 +126,21 @@ export function ResourceSubmissionDialog({
             className={`${adminInputClass} cursor-pointer py-2 file:mr-3 file:rounded-[5px] file:border-0 file:bg-[#EAF4FB] file:px-3 file:py-1.5 file:text-[12px] file:font-extrabold file:text-[#005CB9]`}
           />
         </AdminField>
+        <AdminField
+          label="Imagen de portada"
+          hint="Opcional. Se mostrará como portada del recurso y se puede encuadrar antes de enviarla."
+          error={errors.coverFile}
+        >
+          <ImageCropField
+            label="portada del recurso"
+            value={coverFile}
+            disabled={loading}
+            onChange={(nextFile) => {
+              setCoverFile(nextFile);
+              setErrors((current) => ({ ...current, coverFile: "" }));
+            }}
+          />
+        </AdminField>
         <p className="rounded-[8px] border border-[#9BDCE4] bg-[#EAF9FB] px-4 py-3 text-[12px] font-bold leading-relaxed text-[#15566A]">
           La propuesta no será visible para otros integrantes hasta su aprobación.
         </p>
@@ -132,7 +150,7 @@ export function ResourceSubmissionDialog({
   );
 }
 
-function validateSubmission(title: string, file: File | null) {
+function validateSubmission(title: string, file: File | null, coverFile: File | null) {
   const errors: Record<string, string> = {};
   if (!title.trim()) errors.title = "Ingresá el título.";
   if (file) {
@@ -140,6 +158,13 @@ function validateSubmission(title: string, file: File | null) {
       validateResourceFile(file);
     } catch (error) {
       errors.file = getErrorMessage(error, "El archivo no es válido.");
+    }
+  }
+  if (coverFile) {
+    try {
+      validateSectionBanner(coverFile);
+    } catch (error) {
+      errors.coverFile = getErrorMessage(error, "La imagen de portada no es válida.");
     }
   }
   return errors;
