@@ -1,3 +1,5 @@
+import type { JSONContent } from "@tiptap/react";
+
 export type ResourceFileKind = "pdf" | "word" | "powerpoint" | "spreadsheet" | "image" | "other";
 
 export const resourceReactionEmojis = ["💖", "👍", "🎉", "👏", "😂", "😮", "😢", "🤔", "👎"] as const;
@@ -38,6 +40,7 @@ export type SectionResource = {
   sectionId: string;
   title: string;
   description: string | null;
+  contentJson: JSONContent | null;
   coverImagePath: string | null;
   coverImageUrl: string | null;
   thumbnailStrategy: string;
@@ -69,6 +72,7 @@ export type ResourceInput = {
   sectionId: string;
   title: string;
   description: string | null;
+  contentJson: JSONContent;
   file: File | null;
   fileKind: ResourceFileKind;
   coverFile: File | null;

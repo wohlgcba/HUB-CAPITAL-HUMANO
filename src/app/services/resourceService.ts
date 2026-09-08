@@ -7,6 +7,7 @@ import type {
   ResourceSearchItem,
   SectionResource,
 } from "../types/resources";
+import type { JSONContent } from "@tiptap/react";
 import { toServiceError } from "./serviceError";
 import {
   createStoragePath,
@@ -23,6 +24,7 @@ type ResourceRow = {
   section_id: string;
   title: string;
   description: string | null;
+  content_json: JSONContent | null;
   cover_image_path: string | null;
   thumbnail_strategy: string;
   sort_order: number;
@@ -48,7 +50,7 @@ type FileRow = {
 };
 
 const resourceColumns =
-  "id,section_id,title,description,cover_image_path,thumbnail_strategy,sort_order,is_featured,is_active,created_at,published_at,updated_at";
+  "id,section_id,title,description,content_json,cover_image_path,thumbnail_strategy,sort_order,is_featured,is_active,created_at,published_at,updated_at";
 const fileColumns =
   "id,resource_id,storage_bucket,storage_path,file_name,file_kind,mime_type,file_size_bytes,thumbnail_path,sort_order,allow_download";
 
@@ -139,6 +141,7 @@ export async function createResource(input: ResourceInput): Promise<SectionResou
     section_id: input.sectionId,
     title: input.title.trim(),
     description: input.description?.trim() || null,
+    content_json: input.contentJson,
     cover_image_path: coverPath,
     thumbnail_strategy: "auto_from_first_file",
     is_featured: input.isFeatured,
@@ -211,6 +214,7 @@ export async function updateResource(resource: SectionResource, input: ResourceI
       section_id: input.sectionId,
       title: input.title.trim(),
       description: input.description?.trim() || null,
+      content_json: input.contentJson,
       cover_image_path: uploadedCoverPath ?? resource.coverImagePath,
       is_featured: input.isFeatured,
       is_active: input.isActive,
@@ -233,6 +237,7 @@ export async function updateResource(resource: SectionResource, input: ResourceI
         section_id: resource.sectionId,
         title: resource.title,
         description: resource.description,
+        content_json: resource.contentJson,
         cover_image_path: resource.coverImagePath,
         is_featured: resource.isFeatured,
         is_active: resource.isActive,
@@ -422,6 +427,7 @@ async function hydrateResources(rows: ResourceRow[]): Promise<SectionResource[]>
       sectionId: row.section_id,
       title: row.title,
       description: row.description,
+      contentJson: row.content_json,
       coverImagePath: row.cover_image_path,
       coverImageUrl: await getSignedAssetUrl("resource-covers", row.cover_image_path),
       thumbnailStrategy: row.thumbnail_strategy,

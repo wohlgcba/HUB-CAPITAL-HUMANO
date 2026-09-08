@@ -13,7 +13,6 @@ import type { ResourceFileKind, ResourceReaction, ResourceReactionMap, ResourceR
 import type { AppIconName } from "./AppIcon";
 import { AppIcon } from "./AppIcon";
 import { ConfirmDialog } from "./ConfirmDialog";
-import { ResourceFormDialog } from "./ResourceFormDialog";
 import { ResourceReactions } from "./ResourceReactions";
 import { ResourceSubmissionDialog } from "./ResourceSubmissionDialog";
 import { SectionFormDialog } from "./SectionFormDialog";
@@ -53,9 +52,7 @@ export function SectionDetailPage() {
   const [error, setError] = useState("");
   const [toast, setToast] = useState("");
   const [sectionFormOpen, setSectionFormOpen] = useState(false);
-  const [resourceFormOpen, setResourceFormOpen] = useState(false);
   const [submissionFormOpen, setSubmissionFormOpen] = useState(false);
-  const [editingResource, setEditingResource] = useState<SectionResource | null>(null);
   const [deletingResource, setDeletingResource] = useState<SectionResource | null>(null);
   const [publishingResource, setPublishingResource] = useState<SectionResource | null>(null);
   const [reactionSummaries, setReactionSummaries] = useState<ResourceReactionMap>({});
@@ -203,7 +200,7 @@ export function SectionDetailPage() {
           section={section}
           isAdmin={isAdmin}
           onEditSection={() => setSectionFormOpen(true)}
-          onAddContent={() => { setEditingResource(null); setResourceFormOpen(true); }}
+          onAddContent={() => navigate(`/secciones/${section.slug}/recursos/nuevo`)}
           onDeleteSection={() => setIsSectionDeleteOpen(true)}
           onBack={() => navigate("/")}
           canSubmit={isNovedades && !isAdmin}
@@ -235,7 +232,7 @@ export function SectionDetailPage() {
                   reactionSummary={reactionSummaries[resource.id]}
                   onReaction={(reaction) => handleReaction(resource.id, reaction)}
                   onPublish={() => setPublishingResource(resource)}
-                  onEdit={() => { setEditingResource(resource); setResourceFormOpen(true); }}
+                  onEdit={() => navigate(`/recursos/${resource.id}/editar`)}
                   onDelete={() => setDeletingResource(resource)}
                 />
               ))}
@@ -268,13 +265,6 @@ export function SectionDetailPage() {
               if (savedSection.slug !== slug) navigate(`/secciones/${savedSection.slug}`, { replace: true });
               else setRefreshVersion((version) => version + 1);
             }}
-          />
-          <ResourceFormDialog
-            open={resourceFormOpen}
-            initialSectionId={section.id}
-            resource={editingResource}
-            onCancel={() => { setResourceFormOpen(false); setEditingResource(null); }}
-            onSaved={() => { setResourceFormOpen(false); setEditingResource(null); setRefreshVersion((version) => version + 1); }}
           />
           <ConfirmDialog
             open={isSectionDeleteOpen}

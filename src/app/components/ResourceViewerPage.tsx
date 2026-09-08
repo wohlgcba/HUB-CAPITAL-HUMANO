@@ -9,6 +9,7 @@ import { getErrorMessage } from "../services/serviceError";
 import type { ResourceFile, ResourceReaction, ResourceReactionSummary, SectionResource } from "../types/resources";
 import { AppIcon } from "./AppIcon";
 import { ResourceReactions } from "./ResourceReactions";
+import { RichTextContent } from "./RichTextContent";
 
 export function ResourceViewerPage() {
   const { resourceId } = useParams();
@@ -145,15 +146,20 @@ export function ResourceViewerPage() {
 
   return (
     <main className="mx-auto w-screen max-w-[1400px] px-4 py-[18px] sm:px-6 lg:px-8">
-      <button type="button" onClick={() => navigate(-1)} className="inline-flex min-h-11 items-center gap-2 rounded-[6px] border border-[#C9D5DE] bg-white px-4 text-[13px] font-extrabold text-[#153244]">
-        <AppIcon name="chevronLeft" size={18} /> Volver a la sección
-      </button>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <button type="button" onClick={() => navigate(-1)} className="inline-flex min-h-11 items-center gap-2 rounded-[6px] border border-[#C9D5DE] bg-white px-4 text-[13px] font-extrabold text-[#153244]">
+          <AppIcon name="chevronLeft" size={18} /> Volver a la sección
+        </button>
+        {isAdmin ? <button type="button" onClick={() => navigate(`/recursos/${resource.id}/editar`)} className="inline-flex min-h-11 items-center gap-2 rounded-[6px] bg-[#0072BC] px-4 text-[13px] font-extrabold text-white"><AppIcon name="edit" size={18} /> Editar recurso</button> : null}
+      </div>
 
-      <div className="mt-5 grid gap-5 lg:grid-cols-[280px_minmax(0,1fr)]">
-        <aside className="rounded-[12px] border border-[#E3E8EC] bg-white p-5 shadow-[0_2px_10px_rgba(21,50,68,0.05)]">
+      <div className="mt-5 grid gap-5 lg:grid-cols-[340px_minmax(0,1fr)]">
+        <aside className="min-w-0 overflow-hidden rounded-[12px] border border-[#E3E8EC] bg-white shadow-[0_2px_10px_rgba(21,50,68,0.05)]">
+          {resource.coverImageUrl ? <div className="aspect-[16/9] w-full overflow-hidden bg-[#EAF1F5]"><img src={resource.coverImageUrl} alt={`Portada de ${resource.title}`} className="h-full w-full object-cover" /></div> : null}
+          <div className="min-w-0 p-5">
           <p className="text-[11px] font-extrabold uppercase text-[#5F6B76]">Recurso</p>
-          <h1 className="mt-2 text-[24px] font-extrabold leading-tight text-[#153244]">{resource.title}</h1>
-          <p className="mt-4 text-[13px] font-semibold leading-relaxed text-[#5F6B76]">{resource.description || "Sin descripción."}</p>
+          <h1 className="mt-2 break-words text-[24px] font-extrabold leading-tight text-[#153244] [overflow-wrap:anywhere]">{resource.title}</h1>
+          <RichTextContent content={resource.contentJson} fallback={resource.description} emptyText="Sin descripción." className="mt-4 text-[13px] font-semibold leading-relaxed text-[#5F6B76]" />
           <p className="mt-4 text-[12px] font-bold text-[#5F6B76]">Publicado el {formatDate(resource.publishedAt)}</p>
           {resource.isActive ? <ResourceReactions resourceTitle={resource.title} summary={reactionSummary} canViewReactors={isAdmin} onChange={handleReaction} /> : null}
 
@@ -175,6 +181,7 @@ export function ResourceViewerPage() {
           ) : (
             resource.coverImageUrl ? <div className="mt-3 rounded-[7px] border border-[#153244] bg-[#DDF8F5] px-3 py-2"><span className="block text-[12px] font-extrabold text-[#153244]">Imagen del recurso</span><span className="mt-1 block text-[10px] font-semibold text-[#5F6B76]">IMG</span></div> : <p className="mt-3 text-[13px] font-semibold text-[#5F6B76]">Este recurso no tiene archivos publicados.</p>
           )}
+          </div>
         </aside>
 
         <section

@@ -9,11 +9,10 @@ import { getErrorMessage } from "../services/serviceError";
 import { listAdminSections } from "../services/sectionService";
 import type { AdminDashboardStats } from "../types/admin";
 import type { HubSection } from "../types/hub";
-import type { RecentResource, SectionResource } from "../types/resources";
+import type { RecentResource } from "../types/resources";
 import { AdminSectionCard } from "./AdminSectionCard";
 import { AppIcon, type AppIconName } from "./AppIcon";
 import { ConfirmDialog } from "./ConfirmDialog";
-import { ResourceFormDialog } from "./ResourceFormDialog";
 import { SectionFormDialog } from "./SectionFormDialog";
 
 export function AdminHubPage() {
@@ -24,9 +23,6 @@ export function AdminHubPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [sectionFormOpen, setSectionFormOpen] = useState(false);
-  const [resourceFormOpen, setResourceFormOpen] = useState(false);
-  const [resourceSectionId, setResourceSectionId] = useState("");
-  const [editingResource, setEditingResource] = useState<SectionResource | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<RecentResource | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
@@ -53,12 +49,6 @@ export function AdminHubPage() {
     void logAuditEvent("hub_view", "hub");
     void loadDashboard(true);
   }, [loadDashboard]);
-
-  const openResourceForm = (sectionId: string, resource: SectionResource | null = null) => {
-    setResourceSectionId(sectionId);
-    setEditingResource(resource);
-    setResourceFormOpen(true);
-  };
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
@@ -142,7 +132,7 @@ export function AdminHubPage() {
                     <td className="px-4 py-3">{resource.files[0] ? formatFileKind(resource.files[0].fileKind) : resource.coverImagePath ? "IMG" : "Sin archivo"}</td>
                     <td className="px-4 py-3"><StatusPill active={resource.isActive} /></td>
                     <td className="px-4 py-3 text-[#5F6B76]">{formatDate(resource.updatedAt)}</td>
-                    <td className="px-5 py-3"><div className="flex justify-end gap-2"><button type="button" onClick={() => openResourceForm(resource.sectionId, resource)} className="inline-flex min-h-10 items-center gap-1.5 rounded-[6px] border border-[#0072BC] px-3 text-[12px] font-extrabold text-[#0072BC]"><AppIcon name="edit" size={16} />Editar contenido</button><button type="button" onClick={() => setDeleteTarget(resource)} aria-label={`Eliminar ${resource.title}`} className="flex h-10 w-10 items-center justify-center rounded-[6px] border border-[#E3B0B0] text-[#B52F2F]"><AppIcon name="trash" size={17} /></button></div></td>
+                    <td className="px-5 py-3"><div className="flex justify-end gap-2"><button type="button" onClick={() => navigate(`/recursos/${resource.id}/editar`)} className="inline-flex min-h-10 items-center gap-1.5 rounded-[6px] border border-[#0072BC] px-3 text-[12px] font-extrabold text-[#0072BC]"><AppIcon name="edit" size={16} />Editar recurso</button><button type="button" onClick={() => setDeleteTarget(resource)} aria-label={`Eliminar ${resource.title}`} className="flex h-10 w-10 items-center justify-center rounded-[6px] border border-[#E3B0B0] text-[#B52F2F]"><AppIcon name="trash" size={17} /></button></div></td>
                   </tr>
                 ))}
               </tbody>
@@ -152,7 +142,6 @@ export function AdminHubPage() {
       </section>
 
       <SectionFormDialog open={sectionFormOpen} onCancel={() => setSectionFormOpen(false)} onSaved={() => { setSectionFormOpen(false); void loadDashboard(); }} />
-      <ResourceFormDialog open={resourceFormOpen} initialSectionId={resourceSectionId} resource={editingResource} onCancel={() => { setResourceFormOpen(false); setEditingResource(null); }} onSaved={() => { setResourceFormOpen(false); setEditingResource(null); void loadDashboard(); }} />
       <ConfirmDialog
         open={Boolean(deleteTarget)}
         title="¿Eliminar este recurso?"

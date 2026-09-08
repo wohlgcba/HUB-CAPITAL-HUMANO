@@ -17,6 +17,7 @@ const DirectoryPage = lazy(() => import("./components/DirectoryPage").then((modu
 const AdminMetricsPage = lazy(() => import("./components/AdminMetricsPage").then((module) => ({ default: module.AdminMetricsPage })));
 const HelpPage = lazy(() => import("./components/HelpPage").then((module) => ({ default: module.HelpPage })));
 const ResourceViewerPage = lazy(() => import("./components/ResourceViewerPage").then((module) => ({ default: module.ResourceViewerPage })));
+const ResourceEditorPage = lazy(() => import("./components/ResourceEditorPage").then((module) => ({ default: module.ResourceEditorPage })));
 const SectionDetailPage = lazy(() => import("./components/SectionDetailPage").then((module) => ({ default: module.SectionDetailPage })));
 
 export default function App() {
@@ -58,7 +59,9 @@ function AuthenticatedApp({ profile, onLogout }: { profile: UserProfile; onLogou
               <Route path="/novedades" element={<Navigate to="/" replace />} />
               <Route path="/ayuda" element={<HelpPage />} />
               <Route path="/secciones/:slug" element={<SectionDetailPage />} />
+              <Route path="/secciones/:slug/recursos/nuevo" element={isAdmin ? <ResourceEditorPage /> : <Navigate to="/" replace />} />
               <Route path="/recursos/:resourceId" element={<ResourceViewerPage />} />
+              <Route path="/recursos/:resourceId/editar" element={isAdmin ? <ResourceEditorPage /> : <Navigate to="/" replace />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </Suspense>
