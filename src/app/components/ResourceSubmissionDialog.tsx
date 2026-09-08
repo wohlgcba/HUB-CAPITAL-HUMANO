@@ -51,7 +51,7 @@ export function ResourceSubmissionDialog({
         sectionId,
         title: title.trim(),
         description: description.trim() || null,
-        file: file!,
+        file,
       });
       toast.success("Propuesta enviada", {
         description: "Un administrador debe revisarla antes de publicarla.",
@@ -113,7 +113,6 @@ export function ResourceSubmissionDialog({
         </AdminField>
         <AdminField
           label="Archivo"
-          required
           hint="PDF, PPTX, DOCX, XLSX o imagen. Las imágenes se encuadran antes de enviar."
           error={errors.file}
         >
@@ -136,7 +135,6 @@ export function ResourceSubmissionDialog({
 function validateSubmission(title: string, file: File | null) {
   const errors: Record<string, string> = {};
   if (!title.trim()) errors.title = "Ingresá el título.";
-  if (!file) errors.file = "Seleccioná un archivo.";
   if (file) {
     try {
       validateResourceFile(file);

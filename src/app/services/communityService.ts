@@ -20,8 +20,17 @@ export async function submitNovedadesResource(input: {
   sectionId: string;
   title: string;
   description: string | null;
-  file: File;
+  file: File | null;
 }) {
+  if (!input.file) {
+    const created = await requestCommunity<{ resourceId: string }>({
+      action: "create-submission",
+      sectionId: input.sectionId,
+      title: input.title,
+      description: input.description,
+    });
+    return created.resourceId;
+  }
   validateResourceFile(input.file);
   const prepared = await requestCommunity<PreparedUpload>({
     action: "prepare-upload",

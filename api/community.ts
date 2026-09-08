@@ -28,6 +28,7 @@ type FileData = { fileName: string; fileSize: number; fileKind: ResourceFileKind
 type RequestBody =
   | { action: "prepare-upload"; sectionId: unknown; fileName: unknown; fileSize: unknown }
   | { action: "complete-submission"; sectionId: unknown; resourceId: unknown; storagePath: unknown; title: unknown; description: unknown; fileName: unknown; fileSize: unknown }
+  | { action: "create-submission"; sectionId: unknown; title: unknown; description: unknown }
   | { action: "cancel-upload"; resourceId: unknown; storagePath: unknown }
   | { action: "get-reactions"; resourceIds: unknown }
   | { action: "set-reaction"; resourceId: unknown; emoji: unknown };
@@ -95,6 +96,16 @@ export default async function handler(request: VercelRequest, response: VercelRe
         assertOwnedStoragePath(storagePath, caller.profileId, resourceId);
         await requireUploadedObject(adminClient, storagePath, file.fileSize);
         await createSubmission(adminClient, caller, { sectionId, resourceId, storagePath, title, description, ...file });
+        return response.status(201).json({ resourceId });
+      }
+      case "create-submission": {
+        requireStandardUser(caller);
+        const sectionId = requireUuid(body.sectionId, "La sección indicada no es válida.");
+        const title = requiredText(body.title, "Ingresá el título del recurso.", 220);
+        const description = nullableText(body.description, 1000);
+        const resourceId = randomUUID();
+        await requireNovedadesSection(adminClient, sectionId);
+        await createSubmission(adminClient, caller, { sectionId, resourceId, title, description });
         return response.status(201).json({ resourceId });
       }
       case "cancel-upload": {
@@ -189,7 +200,7 @@ async function requirePublishedResource(adminClient: SupabaseClient, resourceId:
 async function createSubmission(
   adminClient: SupabaseClient,
   caller: Caller,
-  input: FileData & { sectionId: string; resourceId: string; storagePath: string; title: string; description: string | null },
+  input: Partial<FileData> & { sectionId: string; resourceId: string; storagePath?: string; title: string; description: string | null },
 ) {
   const { error: resourceError } = await adminClient.from("section_resources").insert({
     id: input.resourceId,
@@ -202,25 +213,27 @@ async function createSubmission(
     published_at: new Date().toISOString(),
   });
   if (resourceError) {
-    await adminClient.storage.from(resourceBucket).remove([input.storagePath]);
+    if (input.storagePath) await adminClient.storage.from(resourceBucket).remove([input.storagePath]);
     throw new ApiError("No se pudo registrar la propuesta.", 409, "SUBMISSION_CREATE_FAILED");
   }
 
-  const { error: fileError } = await adminClient.from("resource_files").insert({
-    resource_id: input.resourceId,
-    storage_bucket: resourceBucket,
-    storage_path: input.storagePath,
-    file_name: input.fileName,
-    file_kind: input.fileKind,
-    mime_type: input.contentType,
-    file_size_bytes: input.fileSize,
-    sort_order: 0,
-    allow_download: true,
-  });
-  if (fileError) {
-    await adminClient.from("section_resources").delete().eq("id", input.resourceId);
-    await adminClient.storage.from(resourceBucket).remove([input.storagePath]);
-    throw new ApiError("No se pudo vincular el archivo con la propuesta.", 409, "SUBMISSION_FILE_FAILED");
+  if (input.storagePath && input.fileName && input.fileKind && input.contentType && input.fileSize) {
+    const { error: fileError } = await adminClient.from("resource_files").insert({
+      resource_id: input.resourceId,
+      storage_bucket: resourceBucket,
+      storage_path: input.storagePath,
+      file_name: input.fileName,
+      file_kind: input.fileKind,
+      mime_type: input.contentType,
+      file_size_bytes: input.fileSize,
+      sort_order: 0,
+      allow_download: true,
+    });
+    if (fileError) {
+      await adminClient.from("section_resources").delete().eq("id", input.resourceId);
+      await adminClient.storage.from(resourceBucket).remove([input.storagePath]);
+      throw new ApiError("No se pudo vincular el archivo con la propuesta.", 409, "SUBMISSION_FILE_FAILED");
+    }
   }
 
   await Promise.all([
@@ -327,7 +340,7 @@ function parseBody(body: unknown): RequestBody {
   const parsed = typeof body === "string" ? safeJsonParse(body) : body;
   if (!parsed || typeof parsed !== "object" || !("action" in parsed)) throw new ApiError("La solicitud no es válida.");
   const action = (parsed as { action?: unknown }).action;
-  if (!["prepare-upload", "complete-submission", "cancel-upload", "get-reactions", "set-reaction"].includes(String(action))) {
+  if (!["prepare-upload", "complete-submission", "create-submission", "cancel-upload", "get-reactions", "set-reaction"].includes(String(action))) {
     throw new ApiError("La acción indicada no es válida.");
   }
   return parsed as RequestBody;

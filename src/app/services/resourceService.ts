@@ -118,11 +118,10 @@ export async function getAdminResourceById(resourceId: string): Promise<SectionR
 }
 
 export async function createResource(input: ResourceInput): Promise<SectionResource> {
-  if (!input.file) throw new Error("Seleccioná un archivo.");
-  const fileKind = validateResourceFile(input.file);
   const resourceId = crypto.randomUUID();
-  const storagePath = createStoragePath(resourceId, input.file.name);
-  await uploadStorageFile("resource-files", storagePath, input.file);
+  const fileKind = input.file ? validateResourceFile(input.file) : null;
+  const storagePath = input.file ? createStoragePath(resourceId, input.file.name) : null;
+  if (input.file && storagePath) await uploadStorageFile("resource-files", storagePath, input.file);
   let coverPath: string | null = null;
   if (input.coverFile) {
     try {
@@ -130,7 +129,7 @@ export async function createResource(input: ResourceInput): Promise<SectionResou
       coverPath = createStoragePath(resourceId, input.coverFile.name);
       await uploadStorageFile("resource-covers", coverPath, input.coverFile);
     } catch (coverError) {
-      await removeStorageObjects([{ bucket: "resource-files", path: storagePath }]).catch(() => undefined);
+      if (storagePath) await removeStorageObjects([{ bucket: "resource-files", path: storagePath }]).catch(() => undefined);
       throw coverError;
     }
   }
@@ -149,31 +148,33 @@ export async function createResource(input: ResourceInput): Promise<SectionResou
 
   if (resourceError) {
     await removeStorageObjects([
-      { bucket: "resource-files", path: storagePath },
+      ...(storagePath ? [{ bucket: "resource-files", path: storagePath }] : []),
       ...(coverPath ? [{ bucket: "resource-covers", path: coverPath }] : []),
     ]).catch(() => undefined);
     throw toServiceError(resourceError, "No se pudo crear el recurso.");
   }
 
-  const { error: fileError } = await supabase.from("resource_files").insert({
-    resource_id: resourceId,
-    storage_bucket: "resource-files",
-    storage_path: storagePath,
-    file_name: input.file.name,
-    file_kind: fileKind,
-    mime_type: input.file.type || null,
-    file_size_bytes: input.file.size,
-    sort_order: 0,
-    allow_download: input.allowDownload,
-  });
+  if (input.file && storagePath && fileKind) {
+    const { error: fileError } = await supabase.from("resource_files").insert({
+      resource_id: resourceId,
+      storage_bucket: "resource-files",
+      storage_path: storagePath,
+      file_name: input.file.name,
+      file_kind: fileKind,
+      mime_type: input.file.type || null,
+      file_size_bytes: input.file.size,
+      sort_order: 0,
+      allow_download: input.allowDownload,
+    });
 
-  if (fileError) {
-    await supabase.from("section_resources").delete().eq("id", resourceId);
-    await removeStorageObjects([
-      { bucket: "resource-files", path: storagePath },
-      ...(coverPath ? [{ bucket: "resource-covers", path: coverPath }] : []),
-    ]).catch(() => undefined);
-    throw toServiceError(fileError, "No se pudo vincular el archivo con el recurso.");
+    if (fileError) {
+      await supabase.from("section_resources").delete().eq("id", resourceId);
+      await removeStorageObjects([
+        { bucket: "resource-files", path: storagePath },
+        ...(coverPath ? [{ bucket: "resource-covers", path: coverPath }] : []),
+      ]).catch(() => undefined);
+      throw toServiceError(fileError, "No se pudo vincular el archivo con el recurso.");
+    }
   }
 
   const resource = await getResourceByIdInternal(resourceId, true);

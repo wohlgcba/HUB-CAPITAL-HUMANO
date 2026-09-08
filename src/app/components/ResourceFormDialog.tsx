@@ -69,7 +69,7 @@ export function ResourceFormDialog({
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const nextErrors = validate(form, Boolean(resource));
+    const nextErrors = validate(form);
     if (Object.keys(nextErrors).length > 0) {
       setErrors(nextErrors);
       return;
@@ -130,7 +130,7 @@ export function ResourceFormDialog({
         <div className="sm:col-span-2">
           <AdminField
             label={resource ? "Reemplazar archivo" : "Archivo"}
-            required={!resource}
+            required={false}
             hint={currentFile ? `Archivo actual: ${currentFile.fileName}. Si elegís otro, se reemplazará después de guardar correctamente.` : "PDF, PPTX, DOCX, XLSX o imagen. Las imágenes se encuadran antes de guardar."}
             error={errors.file}
           >
@@ -171,13 +171,12 @@ function createInitialState(resource: SectionResource | null | undefined, sectio
   };
 }
 
-function validate(form: ResourceFormState, isEditing: boolean) {
+function validate(form: ResourceFormState) {
   const errors: Record<string, string> = {};
   if (!form.sectionId) errors.sectionId = "Seleccioná una sección.";
   if (!form.title.trim()) errors.title = "Ingresá el título.";
-  if (!isEditing && !form.file) errors.file = "Seleccioná un archivo.";
   if (form.file && form.file.size > 50 * 1024 * 1024) errors.file = "El archivo no puede superar los 50 MB.";
-  if (form.file && inferResourceFileKind(form.file) === "other") errors.file = "El archivo debe ser PDF, PPTX, DOCX o XLSX.";
+  if (form.file && inferResourceFileKind(form.file) === "other") errors.file = "El archivo debe ser PDF, PPTX, DOCX, XLSX, JPG, PNG o WEBP.";
   if (form.coverFile && form.coverFile.size > 10 * 1024 * 1024) errors.coverFile = "La portada no puede superar los 10 MB.";
   if (!form.publishedAt || Number.isNaN(new Date(`${form.publishedAt}T12:00:00`).getTime())) errors.publishedAt = "Ingresá una fecha válida.";
   return errors;
