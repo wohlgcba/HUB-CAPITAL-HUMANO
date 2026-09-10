@@ -274,18 +274,24 @@ async function importDirectory(adminClient, parsedWorkbook, adminPassword) {
   const authUsers = await listAllAuthUsers(adminClient);
   const authByEmail = new Map(authUsers.filter((user) => user.email).map((user) => [user.email.toLowerCase(), user]));
   const existingProfiles = await requireData(
-    adminClient.from("profiles").select("id,email,auth_user_id,role,must_change_password"),
+    adminClient.from("profiles").select("id,email,auth_user_id,directory_person_id,role,must_change_password"),
     "No se pudieron leer los perfiles existentes.",
   );
   const profileByEmail = new Map(existingProfiles.map((profile) => [profile.email.toLowerCase(), profile]));
+  const profileByDirectoryPersonId = new Map(
+    existingProfiles
+      .filter((profile) => profile.directory_person_id)
+      .map((profile) => [profile.directory_person_id, profile]),
+  );
+  const authById = new Map(authUsers.map((user) => [user.id, user]));
   let directoryAuthCreated = 0;
 
   for (const person of parsedWorkbook.authReadyPeople) {
     const directoryPerson = importedByKey.get(personKey(person.area, person.fullName));
     if (!directoryPerson || !person.email || !person.cuit) continue;
 
-    const existingAuthUser = authByEmail.get(person.email);
-    const existingProfile = profileByEmail.get(person.email);
+    const existingProfile = profileByDirectoryPersonId.get(directoryPerson.id) || profileByEmail.get(person.email);
+    const existingAuthUser = authByEmail.get(person.email) || (existingProfile?.auth_user_id ? authById.get(existingProfile.auth_user_id) : null);
     const profilePayload = {
       directory_person_id: directoryPerson.id,
       cuit: person.cuit,
@@ -307,7 +313,16 @@ async function importDirectory(adminClient, parsedWorkbook, adminPassword) {
           "No se pudo crear un perfil de usuario.",
         );
 
-    if (!existingAuthUser) {
+    if (existingAuthUser && existingAuthUser.email?.toLowerCase() !== person.email) {
+      const { data, error } = await adminClient.auth.admin.updateUserById(existingAuthUser.id, {
+        email: person.email,
+        email_confirm: true,
+        user_metadata: { full_name: person.fullName },
+      });
+      if (error || !data.user) throw safeError("No se pudo actualizar el correo de un usuario del Directorio.", error);
+      authByEmail.set(person.email, data.user);
+      authById.set(data.user.id, data.user);
+    } else if (!existingAuthUser) {
       const { data, error } = await adminClient.auth.admin.createUser({
         email: person.email,
         password: person.cuit,
@@ -321,6 +336,7 @@ async function importDirectory(adminClient, parsedWorkbook, adminPassword) {
         "No se pudo vincular un usuario con su perfil.",
       );
       authByEmail.set(person.email, data.user);
+      authById.set(data.user.id, data.user);
       directoryAuthCreated += 1;
     }
   }
@@ -435,9 +451,13 @@ function matchIncomingPeople(existingPeople, incomingPeople) {
   const byCuit = new Map(existingPeople.filter((person) => person.cuit).map((person) => [normalizeCuit(person.cuit), person]));
   const byEmail = new Map(existingPeople.filter((person) => person.email).map((person) => [normalizeEmail(person.email), person]));
   const byName = new Map();
+  const byNameTokens = new Map();
   for (const person of existingPeople) {
     const key = normalizeKey(person.full_name);
     byName.set(key, [...(byName.get(key) || []), person]);
+
+    const tokenKey = normalizedNameTokens(person.full_name).join(" ");
+    byNameTokens.set(tokenKey, [...(byNameTokens.get(tokenKey) || []), person]);
   }
 
   return incomingPeople.map((person) => {
@@ -453,7 +473,19 @@ function matchIncomingPeople(existingPeople, incomingPeople) {
       return { person, existing: identityMatches[0], matchType: person.cuit && byCuit.get(person.cuit)?.id === identityMatches[0].id ? "cuit" : "email" };
     }
     const nameMatches = byName.get(normalizeKey(person.fullName)) || [];
-    return { person, existing: nameMatches.length === 1 ? nameMatches[0] : null, matchType: nameMatches.length === 1 ? "unique-name" : "" };
+    if (nameMatches.length === 1) return { person, existing: nameMatches[0], matchType: "unique-name" };
+
+    const incomingTokens = normalizedNameTokens(person.fullName);
+    const compatibleMatches = [...byNameTokens.values()]
+      .flat()
+      .filter((candidate) => haveCompatibleNameTokens(incomingTokens, normalizedNameTokens(candidate.full_name)));
+    const uniqueCompatibleMatches = [...new Map(compatibleMatches.map((candidate) => [candidate.id, candidate])).values()];
+
+    return {
+      person,
+      existing: uniqueCompatibleMatches.length === 1 ? uniqueCompatibleMatches[0] : null,
+      matchType: uniqueCompatibleMatches.length === 1 ? "compatible-name" : "",
+    };
   });
 }
 
@@ -476,7 +508,21 @@ function organizationPathKey(segments) {
 }
 
 function normalizeKey(value) {
-  return normalizeText(value).toLocaleLowerCase("es-AR");
+  return normalizeText(value)
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLocaleLowerCase("es-AR");
+}
+
+function normalizedNameTokens(value) {
+  return [...new Set(normalizeKey(value).split(/[^\p{L}\p{N}]+/u).filter(Boolean))].sort();
+}
+
+function haveCompatibleNameTokens(first, second) {
+  if (first.length < 2 || second.length < 2) return false;
+  const firstSet = new Set(first);
+  const secondSet = new Set(second);
+  return first.every((token) => secondSet.has(token)) || second.every((token) => firstSet.has(token));
 }
 
 function isPlaceholderName(value) {
