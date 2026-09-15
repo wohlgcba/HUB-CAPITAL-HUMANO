@@ -9,12 +9,14 @@ type DirectoryFiltersProps = {
   linkTypeId: string;
   building: string;
   status?: string;
+  pendingChangesOnly?: boolean;
   showStatus?: boolean;
   disabled?: boolean;
   onOrganizationChange: (unitId: string, exact: boolean) => void;
   onLinkTypeChange: (value: string) => void;
   onBuildingChange: (value: string) => void;
   onStatusChange?: (value: string) => void;
+  onPendingChangesOnlyChange?: (value: boolean) => void;
   onClear: () => void;
 };
 
@@ -25,12 +27,14 @@ export function DirectoryFilters({
   linkTypeId,
   building,
   status = "",
+  pendingChangesOnly = false,
   showStatus = false,
   disabled = false,
   onOrganizationChange,
   onLinkTypeChange,
   onBuildingChange,
   onStatusChange,
+  onPendingChangesOnlyChange,
   onClear,
 }: DirectoryFiltersProps) {
   return (
@@ -71,6 +75,15 @@ export function DirectoryFilters({
       {showStatus && onStatusChange ? (
         <FilterBlock title="Estado">
           <StyledFilterSelect value={status} options={options.statuses} allLabel="Todos" onChange={onStatusChange} disabled={disabled} />
+        </FilterBlock>
+      ) : null}
+
+      {showStatus && onPendingChangesOnlyChange ? (
+        <FilterBlock title="Cambios a revisar">
+          <label className="flex min-h-11 cursor-pointer items-center gap-3 rounded-[8px] border border-[#D7E0E7] bg-[#F8FAFB] px-3 py-2.5 text-[12px] font-bold text-[#153244] transition hover:border-[#9FC7DD]">
+            <input type="checkbox" checked={pendingChangesOnly} onChange={(event) => onPendingChangesOnlyChange(event.target.checked)} disabled={disabled} className="h-4 w-4 shrink-0 cursor-pointer accent-[#005CB9] disabled:cursor-not-allowed" />
+            <span>Solo cambios pendientes</span>
+          </label>
         </FilterBlock>
       ) : null}
     </aside>

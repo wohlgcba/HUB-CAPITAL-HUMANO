@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { IconArrowsSort } from "@tabler/icons-react";
 import { toast } from "sonner";
 import { useAuth } from "../context/AuthContext";
 import {
@@ -16,7 +17,7 @@ import {
 import { getErrorMessage } from "../services/serviceError";
 import { getPendingChangeRequestForPerson, reviewDirectoryChangeRequest } from "../services/profileChangeService";
 import type { AdminPersonInput } from "../types/admin";
-import type { DirectoryFilterOptions, DirectoryPersonDetail, DirectoryPersonSummary } from "../types/directory";
+import type { DirectoryFilterOptions, DirectoryPersonDetail, DirectoryPersonSummary, DirectorySort } from "../types/directory";
 import type { DirectoryChangeRequest } from "../types/profile";
 import { AppIcon } from "./AppIcon";
 import { ConfirmDialog } from "./ConfirmDialog";
@@ -47,6 +48,8 @@ export function DirectoryPage() {
   const [linkTypeId, setLinkTypeId] = useState("");
   const [building, setBuilding] = useState("");
   const [status, setStatus] = useState("");
+  const [pendingChangesOnly, setPendingChangesOnly] = useState(false);
+  const [sort, setSort] = useState<DirectorySort>("az");
   const [currentPage, setCurrentPage] = useState(1);
   const [filterOptions, setFilterOptions] = useState(emptyOptions);
   const [people, setPeople] = useState<DirectoryPersonSummary[]>([]);
@@ -108,7 +111,9 @@ export function DirectoryPage() {
       organizationExact,
       linkTypeId,
       building,
-      status: isAdmin ? status : "active",
+      status: isAdmin ? status : "",
+      pendingChangesOnly: isAdmin && pendingChangesOnly,
+      sort,
       includeInactive: isAdmin,
       page: currentPage,
       pageSize,
@@ -125,7 +130,7 @@ export function DirectoryPage() {
       .finally(() => {
         if (requestIdRef.current === requestId) setIsLoadingResults(false);
       });
-  }, [building, currentPage, debouncedSearch, isAdmin, linkTypeId, organizationExact, organizationUnitId, refreshVersion, status]);
+  }, [building, currentPage, debouncedSearch, isAdmin, linkTypeId, organizationExact, organizationUnitId, pendingChangesOnly, refreshVersion, sort, status]);
 
   const updateFilter = (setter: (value: string) => void) => (value: string) => {
     setter(value);
@@ -139,6 +144,8 @@ export function DirectoryPage() {
     setLinkTypeId("");
     setBuilding("");
     setStatus("");
+    setPendingChangesOnly(false);
+    setSort("az");
     setCurrentPage(1);
   };
 
@@ -267,6 +274,7 @@ export function DirectoryPage() {
     linkTypeId,
     building,
     status,
+    pendingChangesOnly,
     showStatus: isAdmin,
     disabled: isLoadingFilters,
     onOrganizationChange: (unitId: string, exact: boolean) => {
@@ -277,6 +285,10 @@ export function DirectoryPage() {
     onLinkTypeChange: updateFilter(setLinkTypeId),
     onBuildingChange: updateFilter(setBuilding),
     onStatusChange: updateFilter(setStatus),
+    onPendingChangesOnlyChange: (value: boolean) => {
+      setPendingChangesOnly(value);
+      setCurrentPage(1);
+    },
     onClear: handleClear,
   };
 
@@ -306,7 +318,19 @@ export function DirectoryPage() {
               <h2 className="text-[16px] font-extrabold text-[#061947]">{filteredTotal} integrantes</h2>
               <p className="mt-1 text-[12px] font-semibold text-[#5F6B76]">Mostrando {firstItem}-{lastItem} de {filteredTotal}{filterOptions.total !== filteredTotal ? ` · ${filterOptions.total} en total` : ""}</p>
             </div>
-            {isAdmin ? <button type="button" onClick={() => { setEditingPerson(null); setPersonFormOpen(true); }} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-[7px] bg-[#0072BC] px-4 text-[13px] font-extrabold text-white hover:bg-[#005F9D]"><AppIcon name="userPlus" size={18} /> Añadir persona</button> : null}
+            <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
+              <label className="relative min-w-[210px] flex-1 sm:flex-none">
+                <span className="sr-only">Ordenar integrantes</span>
+                <IconArrowsSort aria-hidden="true" size={18} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[#536779]" />
+                <select value={sort} onChange={(event) => { setSort(event.target.value as DirectorySort); setCurrentPage(1); }} className="min-h-11 w-full appearance-none rounded-[7px] border border-[#C7D1DA] bg-white py-2 pl-11 pr-10 text-[12px] font-extrabold text-[#153244] outline-none focus:border-[#21AFC0] focus:ring-2 focus:ring-[#21AFC0]/20">
+                  <option value="az">Orden: A a la Z</option>
+                  <option value="za">Orden: Z a la A</option>
+                  <option value="recent">Actividad más reciente</option>
+                </select>
+                <AppIcon name="chevronDown" size={15} className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-[#536779]" />
+              </label>
+              {isAdmin ? <button type="button" onClick={() => { setEditingPerson(null); setPersonFormOpen(true); }} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-[7px] bg-[#0072BC] px-4 text-[13px] font-extrabold text-white hover:bg-[#005F9D] sm:flex-none"><AppIcon name="userPlus" size={18} /> Añadir persona</button> : null}
+            </div>
           </div>
 
           {error ? <p role="alert" className="mb-4 rounded-[8px] border border-[#F0B8B8] bg-[#FFF4F4] px-4 py-3 text-[13px] font-bold text-[#C93B3B]">{error}</p> : null}

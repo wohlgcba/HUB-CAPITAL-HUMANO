@@ -30,6 +30,12 @@ export function PersonCard({
   onDelete,
   onReviewChanges,
 }: PersonCardProps) {
+  const statusLabel = !person.isActive ? "Desactivado" : person.isRecentlyActive ? "Activo" : "Inactivo";
+  const statusTone = !person.isActive
+    ? "bg-[#FFF1C2] text-[#735B00]"
+    : person.isRecentlyActive
+      ? "bg-[#DDF8F5] text-[#006F73]"
+      : "bg-[#EEF2F5] text-[#536779]";
   const columns = isAdmin
     ? "xl:grid-cols-[minmax(180px,1.1fr)_minmax(145px,0.9fr)_minmax(120px,0.75fr)_auto]"
     : "xl:grid-cols-[minmax(220px,1.05fr)_minmax(230px,1fr)_minmax(170px,0.8fr)_104px]";
@@ -43,7 +49,7 @@ export function PersonCard({
         </span>
         <div className="min-w-0">
           <h3 className="truncate text-[18px] font-extrabold leading-tight text-[#061947]">{person.name}</h3>
-          {isAdmin ? <div className="mt-1 flex flex-wrap gap-1.5"><span className={`inline-flex rounded-[4px] px-2 py-0.5 text-[10px] font-extrabold ${person.isActive ? "bg-[#DDF8F5] text-[#006F73]" : "bg-[#FFF1C2] text-[#735B00]"}`}>{person.isActive ? "Activo" : "Inactivo"}</span>{person.hasPendingChanges ? <span className="inline-flex items-center gap-1 rounded-[4px] bg-[#FFF1C2] px-2 py-0.5 text-[10px] font-extrabold text-[#735B00]"><AppIcon name="alert" size={12} /> Cambios pendientes</span> : null}</div> : null}
+          {isAdmin ? <div className="mt-1 flex flex-wrap gap-1.5"><span className={`inline-flex rounded-[4px] px-2 py-0.5 text-[10px] font-extrabold ${statusTone}`}>{statusLabel}</span>{person.hasPendingChanges ? <span className="inline-flex items-center gap-1 rounded-[4px] bg-[#FFF1C2] px-2 py-0.5 text-[10px] font-extrabold text-[#735B00]"><AppIcon name="alert" size={12} /> Cambios pendientes</span> : null}</div> : null}
         </div>
       </div>
 

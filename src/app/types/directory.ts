@@ -16,6 +16,8 @@ export type DirectoryPersonSummary = {
   systemRole: "user" | "admin" | null;
   hasAccount: boolean;
   hasPendingChanges: boolean;
+  lastLoginAt: string | null;
+  isRecentlyActive: boolean;
 };
 
 export type DirectoryPersonDetail = DirectoryPersonSummary & {
@@ -26,8 +28,9 @@ export type DirectoryPersonDetail = DirectoryPersonSummary & {
   accountIsActive?: boolean;
   mustChangePassword?: boolean;
   firstLoginAt?: string | null;
-  lastLoginAt?: string | null;
 };
+
+export type DirectorySort = "az" | "za" | "recent";
 
 export type DirectoryFilterOption = {
   value: string;
@@ -60,6 +63,8 @@ export type DirectoryQuery = {
   linkTypeId: string;
   building: string;
   status: string;
+  pendingChangesOnly: boolean;
+  sort: DirectorySort;
   includeInactive: boolean;
   page: number;
   pageSize: number;

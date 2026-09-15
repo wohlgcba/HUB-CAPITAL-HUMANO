@@ -8,6 +8,7 @@ import type {
   DirectoryPersonSummary,
   DirectoryQuery,
   DirectoryResult,
+  DirectorySort,
 } from "../types/directory";
 import { getAdminPersonAccess } from "./adminService";
 import { getPendingDirectoryPersonIds } from "./profileChangeService";
@@ -44,6 +45,9 @@ type ProfileSummaryRow = {
   directory_person_id: string | null;
   role: "user" | "admin";
   avatar_path: string | null;
+  is_active: boolean;
+  first_login_at: string | null;
+  last_login_at: string | null;
 };
 
 type OrganizationUnitRow = {
@@ -52,6 +56,8 @@ type OrganizationUnitRow = {
   parent_id: string | null;
   depth: number;
 };
+
+const recentActivityDays = 30;
 
 export async function getDirectoryFilterOptions(includeInactive = false): Promise<DirectoryFilterOptions> {
   let peopleQuery = supabase.from("directory_people").select("id,area,gcba_building,is_active,organization_unit_id");
@@ -67,6 +73,7 @@ export async function getDirectoryFilterOptions(includeInactive = false): Promis
   if (firstError) throw toServiceError(firstError, "No se pudieron cargar los filtros del Directorio.");
   const people = peopleResult.data;
   const visiblePersonIds = new Set(people.map((person) => person.id));
+  const profilesByPerson = includeInactive ? await getProfilesByPerson([...visiblePersonIds]) : new Map<string, ProfileSummaryRow>();
   const linkCounts = countValues(
     personLinksResult.data.filter((row) => visiblePersonIds.has(row.person_id)).map((row) => row.link_type_id),
   );
@@ -77,8 +84,8 @@ export async function getDirectoryFilterOptions(includeInactive = false): Promis
     organizationUnits: buildOrganizationOptions(organizationResult.data as OrganizationUnitRow[], people.map((person) => person.organization_unit_id)),
     buildings: toFilterOptions(people.flatMap((person) => (person.gcba_building ? [person.gcba_building] : []))),
     statuses: [
-      { value: "active", label: "Activos", count: people.filter((person) => person.is_active).length },
-      { value: "inactive", label: "Inactivos", count: people.filter((person) => !person.is_active).length },
+      { value: "active", label: "Activos", count: people.filter((person) => isRecentlyActive(person, profilesByPerson.get(person.id) ?? null)).length },
+      { value: "inactive", label: "Inactivos", count: people.filter((person) => !isRecentlyActive(person, profilesByPerson.get(person.id) ?? null)).length },
     ],
     linkTypes: (linkTypesResult.data as LinkTypeRow[]).map((linkType) => ({
       value: linkType.id,
@@ -103,12 +110,9 @@ export async function searchDirectory(query: DirectoryQuery): Promise<DirectoryR
 
   let peopleQuery = supabase
     .from("directory_people")
-    .select("id,area,full_name,job_role,is_active", { count: "exact" })
-    .order("full_name", { ascending: true });
+    .select("id,area,full_name,job_role,is_active");
 
   if (!query.includeInactive) peopleQuery = peopleQuery.eq("is_active", true);
-  if (query.status === "active") peopleQuery = peopleQuery.eq("is_active", true);
-  if (query.status === "inactive") peopleQuery = peopleQuery.eq("is_active", false);
   if (query.organizationUnitId) {
     const organizationIds = query.organizationExact
       ? [query.organizationUnitId]
@@ -127,22 +131,37 @@ export async function searchDirectory(query: DirectoryQuery): Promise<DirectoryR
     );
   }
 
-  const from = (query.page - 1) * query.pageSize;
-  const to = from + query.pageSize - 1;
-  const { data, error, count } = await peopleQuery.range(from, to);
+  const { data, error } = await peopleQuery.limit(1000);
   if (error) throw toServiceError(error, "No se pudo consultar el Directorio.");
 
-  const peopleRows = data as PersonSummaryRow[];
-  const personIds = peopleRows.map((person) => person.id);
-  const [linksByPerson, profilesByPerson, pendingPersonIds] = await Promise.all([
-    getLinksByPerson(personIds),
-    getProfilesByPerson(personIds),
-    getPendingDirectoryPersonIds(personIds),
+  const allPeopleRows = data as PersonSummaryRow[];
+  const allPersonIds = allPeopleRows.map((person) => person.id);
+  const [allProfilesByPerson, pendingPersonIds] = await Promise.all([
+    getProfilesByPerson(allPersonIds),
+    getPendingDirectoryPersonIds(allPersonIds),
   ]);
+  const filteredRows = allPeopleRows.filter((person) => {
+    if (query.pendingChangesOnly && !pendingPersonIds.has(person.id)) return false;
+    if (query.status) {
+      const recentlyActive = isRecentlyActive(person, allProfilesByPerson.get(person.id) ?? null);
+      if (query.status === "active" ? !recentlyActive : recentlyActive) return false;
+    }
+    return true;
+  });
+  sortDirectoryRows(filteredRows, allProfilesByPerson, query.sort);
+
+  const from = (query.page - 1) * query.pageSize;
+  const peopleRows = filteredRows.slice(from, from + query.pageSize);
+  const personIds = peopleRows.map((person) => person.id);
+  const profilesByPerson = new Map(personIds.flatMap((personId) => {
+    const profile = allProfilesByPerson.get(personId);
+    return profile ? [[personId, profile] as const] : [];
+  }));
+  const linksByPerson = await getLinksByPerson(personIds);
   const avatarUrlsByPerson = await getAvatarUrlsByPerson(profilesByPerson);
 
   return {
-    filteredTotal: count ?? 0,
+    filteredTotal: filteredRows.length,
     people: peopleRows.map((person) =>
       mapSummary(
         person,
@@ -233,7 +252,7 @@ async function getProfilesByPerson(personIds: string[]) {
   if (personIds.length === 0) return result;
   const { data, error } = await supabase
     .from("profiles")
-    .select("directory_person_id,role,avatar_path")
+    .select("directory_person_id,role,avatar_path,is_active,first_login_at,last_login_at")
     .in("directory_person_id", personIds);
   if (error) throw toServiceError(error, "No se pudo cargar el estado de los usuarios.");
   for (const profile of data as ProfileSummaryRow[]) {
@@ -286,7 +305,36 @@ function mapSummary(
     systemRole: profile?.role ?? null,
     hasAccount: Boolean(profile),
     hasPendingChanges,
+    lastLoginAt: profile?.last_login_at ?? null,
+    isRecentlyActive: isRecentlyActive(row, profile),
   };
+}
+
+function isRecentlyActive(person: Pick<PersonSummaryRow, "is_active">, profile: ProfileSummaryRow | null) {
+  if (!person.is_active || !profile?.is_active || !profile.last_login_at) return false;
+  const lastLogin = new Date(profile.last_login_at).getTime();
+  return Number.isFinite(lastLogin) && lastLogin >= Date.now() - recentActivityDays * 24 * 60 * 60 * 1000;
+}
+
+function sortDirectoryRows(rows: PersonSummaryRow[], profiles: Map<string, ProfileSummaryRow>, sort: DirectorySort) {
+  rows.sort((first, second) => {
+    if (sort === "recent") {
+      const firstLogin = dateValue(profiles.get(first.id)?.last_login_at);
+      const secondLogin = dateValue(profiles.get(second.id)?.last_login_at);
+      return secondLogin - firstLogin || compareNames(first.full_name, second.full_name);
+    }
+    return sort === "za" ? compareNames(second.full_name, first.full_name) : compareNames(first.full_name, second.full_name);
+  });
+}
+
+function compareNames(first: string, second: string) {
+  return first.localeCompare(second, "es-AR", { sensitivity: "base" });
+}
+
+function dateValue(value: string | null | undefined) {
+  if (!value) return 0;
+  const time = new Date(value).getTime();
+  return Number.isFinite(time) ? time : 0;
 }
 
 function toFilterOptions(values: string[]): DirectoryFilterOption[] {
