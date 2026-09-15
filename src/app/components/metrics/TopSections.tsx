@@ -1,9 +1,9 @@
 import type { TopSectionMetric } from "../../types/metrics";
 import { MetricsPanel } from "./MetricsPanel";
 
-export function TopSections({ sections }: { sections: TopSectionMetric[] }) {
+export function TopSections({ sections, onOpenAll }: { sections: TopSectionMetric[]; onOpenAll: () => void }) {
   return (
-    <MetricsPanel title="Secciones más visitadas" actionLabel="Ver todas las secciones">
+    <MetricsPanel title="Secciones más visitadas" actionLabel="Ver todas las secciones" onAction={onOpenAll}>
       <div className="mt-4">
         <div className="grid grid-cols-[minmax(0,1fr)_52px_42px] gap-3 border-b border-[#E2E8ED] pb-2 text-[10px] font-extrabold text-[#456075]">
           <span>Sección</span><span className="text-right">Visitas</span><span className="text-right">%</span>

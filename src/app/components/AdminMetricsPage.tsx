@@ -7,6 +7,14 @@ import { ActivityChart } from "./metrics/ActivityChart";
 import { AreaParticipation } from "./metrics/AreaParticipation";
 import { DirectoryStatus } from "./metrics/DirectoryStatus";
 import { MetricCard } from "./metrics/MetricCard";
+import {
+  ActivityAnalysisDialog,
+  AreasAnalysisDialog,
+  DirectoryQualityDialog,
+  ResourcesAnalysisDialog,
+  SectionsAnalysisDialog,
+  UsersAnalysisDialog,
+} from "./metrics/MetricsDetailDialogs";
 import { RecentActivity } from "./metrics/RecentActivity";
 import { TopResources } from "./metrics/TopResources";
 import { TopSections } from "./metrics/TopSections";
@@ -20,6 +28,8 @@ const periodOptions: Array<{ value: MetricsPeriodPreset; label: string }> = [
   { value: "custom", label: "Personalizado" },
 ];
 
+type MetricsDetail = "sections" | "resources" | "users" | "areas" | "directory" | "activity";
+
 export function AdminMetricsPage() {
   const [period, setPeriod] = useState<MetricsPeriodPreset>("7d");
   const [sectionId, setSectionId] = useState("");
@@ -30,6 +40,7 @@ export function AdminMetricsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [refreshVersion, setRefreshVersion] = useState(0);
+  const [activeDetail, setActiveDetail] = useState<MetricsDetail | null>(null);
   const range = useMemo(() => getRange(period, customStart, customEnd), [customEnd, customStart, period]);
 
   useEffect(() => {
@@ -70,19 +81,30 @@ export function AdminMetricsPage() {
       </header>
 
       {error ? <div role="alert" className="mt-6 flex flex-wrap items-center justify-between gap-3 rounded-[8px] border border-[#F0B8B8] bg-[#FFF4F4] px-4 py-3 text-[13px] font-bold text-[#B52F2F]"><span>{error}</span><button type="button" onClick={() => setRefreshVersion((version) => version + 1)} className="min-h-11 rounded-[6px] border border-[#B52F2F] px-4">Reintentar</button></div> : null}
-      {loading && !data ? <MetricsSkeleton /> : data ? <MetricsContent data={data} /> : !error ? <div className="mt-6 rounded-[8px] border border-dashed border-[#C7D1DA] bg-white px-5 py-14 text-center text-[13px] font-semibold text-[#5F6B76]">Elegí un período válido para consultar la actividad.</div> : null}
+      {loading && !data ? <MetricsSkeleton /> : data ? <MetricsContent data={data} onOpenDetail={setActiveDetail} /> : !error ? <div className="mt-6 rounded-[8px] border border-dashed border-[#C7D1DA] bg-white px-5 py-14 text-center text-[13px] font-semibold text-[#5F6B76]">Elegí un período válido para consultar la actividad.</div> : null}
       <div className="mt-4 flex min-h-12 items-center gap-3 rounded-[7px] border border-[#BFE4F4] bg-[#E7F6FC] px-4 py-3 text-[11px] font-semibold text-[#31566B]"><IconInfoCircle size={19} className="shrink-0 text-[#0072BC]" /><p>Las métricas se calculan con la actividad registrada en el HUB y se actualizan al presionar Actualizar.</p></div>
+      {activeDetail && data ? <MetricsDetailContent detail={activeDetail} data={data} loading={loading} error={error} onClose={() => setActiveDetail(null)} /> : null}
     </main>
   );
 }
 
-function MetricsContent({ data }: { data: AdminMetricsSnapshot }) {
+function MetricsContent({ data, onOpenDetail }: { data: AdminMetricsSnapshot; onOpenDetail: (detail: MetricsDetail) => void }) {
   return <div className="relative" aria-busy="false">
     <section className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Indicadores principales">{data.kpis.map((metric) => <MetricCard key={metric.id} metric={metric} />)}</section>
-    <div className="mt-4 grid items-stretch gap-4 xl:grid-cols-[minmax(0,1.55fr)_minmax(340px,.95fr)]"><ActivityChart data={data.activity} /><TopSections sections={data.topSections} /></div>
-    <div className="mt-4 grid items-stretch gap-4 xl:grid-cols-[minmax(0,1.55fr)_minmax(340px,.95fr)]"><TopResources resources={data.topResources} /><UserStatusPanel stats={data.userStatus} lowActivityUsers={data.lowActivityUsers} /></div>
-    <div className="mt-4 grid items-stretch gap-4 xl:grid-cols-3"><AreaParticipation areas={data.areaParticipation} /><DirectoryStatus status={data.directoryStatus} completion={data.directoryCompletion} /><RecentActivity activity={data.recentActivity} /></div>
+    <div className="mt-4 grid items-stretch gap-4 xl:grid-cols-[minmax(0,1.55fr)_minmax(340px,.95fr)]"><ActivityChart data={data.activity} /><TopSections sections={data.topSections} onOpenAll={() => onOpenDetail("sections")} /></div>
+    <div className="mt-4 grid items-stretch gap-4 xl:grid-cols-[minmax(0,1.55fr)_minmax(340px,.95fr)]"><TopResources resources={data.topResources} onOpenAll={() => onOpenDetail("resources")} /><UserStatusPanel stats={data.userStatus} lowActivityUsers={data.lowActivityUsers} onOpenAll={() => onOpenDetail("users")} /></div>
+    <div className="mt-4 grid items-stretch gap-4 xl:grid-cols-3"><AreaParticipation areas={data.areaParticipation} onOpenAll={() => onOpenDetail("areas")} /><DirectoryStatus status={data.directoryStatus} completion={data.directoryCompletion} onOpen={() => onOpenDetail("directory")} /><RecentActivity activity={data.recentActivity} onOpenAll={() => onOpenDetail("activity")} /></div>
   </div>;
+}
+
+function MetricsDetailContent({ detail, data, loading, error, onClose }: { detail: MetricsDetail; data: AdminMetricsSnapshot; loading: boolean; error: string; onClose: () => void }) {
+  const props = { data, loading, error, onClose };
+  if (detail === "sections") return <SectionsAnalysisDialog {...props} />;
+  if (detail === "resources") return <ResourcesAnalysisDialog {...props} />;
+  if (detail === "users") return <UsersAnalysisDialog {...props} />;
+  if (detail === "areas") return <AreasAnalysisDialog {...props} />;
+  if (detail === "directory") return <DirectoryQualityDialog {...props} />;
+  return <ActivityAnalysisDialog {...props} />;
 }
 
 function DateField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) { return <label className="inline-flex min-h-10 items-center gap-2 rounded-[7px] border border-[#CCD7DF] bg-white px-3 text-[11px] font-bold text-[#536779]">{label}<input type="date" value={value} onChange={(event) => onChange(event.target.value)} className="bg-transparent font-extrabold text-[#153244] outline-none" /></label>; }

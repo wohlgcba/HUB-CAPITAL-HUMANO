@@ -11,11 +11,11 @@ const toneClasses = {
   violet: "bg-[#F1E8FC] text-[#7D42CC]",
 };
 
-export function DirectoryStatus({ status, completion }: { status: DirectoryStatusMetric[]; completion: DirectoryCompletionMetric }) {
+export function DirectoryStatus({ status, completion, onOpen }: { status: DirectoryStatusMetric[]; completion: DirectoryCompletionMetric; onOpen: () => void }) {
   const { percentage, complete, total } = completion;
   const chartData = [{ value: percentage, color: "#0878D1" }, { value: 100 - percentage, color: "#E5EBF0" }];
   return (
-    <MetricsPanel title="Estado del Directorio" actionLabel="Ver directorio">
+    <MetricsPanel title="Estado del Directorio" actionLabel="Ver calidad del directorio" onAction={onOpen}>
       <div className="mt-4 grid items-center gap-4 sm:grid-cols-[minmax(0,1fr)_150px]">
         <div className="space-y-2.5">
           {status.map((item) => {

@@ -16,9 +16,9 @@ const iconByType = {
   inactive: IconUserOff,
 };
 
-export function UserStatusPanel({ stats, lowActivityUsers }: { stats: UserStatusMetric[]; lowActivityUsers: LowActivityUser[] }) {
+export function UserStatusPanel({ stats, lowActivityUsers, onOpenAll }: { stats: UserStatusMetric[]; lowActivityUsers: LowActivityUser[]; onOpenAll: () => void }) {
   return (
-    <MetricsPanel title="Estado de usuarios" actionLabel="Ver todos los usuarios">
+    <MetricsPanel title="Estado de usuarios" actionLabel="Ver todos los usuarios" onAction={onOpenAll}>
       <div className="mt-3 grid gap-2 sm:grid-cols-2">
         {stats.map((stat) => {
           const Icon = iconByType[stat.icon];

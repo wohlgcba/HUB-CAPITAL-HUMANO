@@ -18,9 +18,9 @@ const sectionTone = {
   cyan: "bg-[#DDF8F5] text-[#006F73]",
 };
 
-export function TopResources({ resources }: { resources: TopResourceMetric[] }) {
+export function TopResources({ resources, onOpenAll }: { resources: TopResourceMetric[]; onOpenAll: () => void }) {
   return (
-    <MetricsPanel title="Recursos más utilizados" actionLabel="Ver todos los recursos">
+    <MetricsPanel title="Recursos más utilizados" actionLabel="Ver todos los recursos" onAction={onOpenAll}>
       <div className="mt-3 overflow-x-auto">
         <table className="w-full min-w-[700px] border-collapse text-left">
           <thead>

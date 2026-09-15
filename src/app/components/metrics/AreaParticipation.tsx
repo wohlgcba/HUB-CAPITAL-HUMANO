@@ -1,9 +1,9 @@
 import type { AreaParticipationMetric } from "../../types/metrics";
 import { MetricsPanel } from "./MetricsPanel";
 
-export function AreaParticipation({ areas }: { areas: AreaParticipationMetric[] }) {
+export function AreaParticipation({ areas, onOpenAll }: { areas: AreaParticipationMetric[]; onOpenAll: () => void }) {
   return (
-    <MetricsPanel title="Participación por área" actionLabel="Ver todas las áreas">
+    <MetricsPanel title="Participación por área" actionLabel="Ver todas las áreas" onAction={onOpenAll}>
       <div className="mt-3 overflow-x-auto">
         <table className="w-full min-w-[410px] border-collapse text-left">
           <thead><tr className="border-b border-[#DDE5EA] text-[9px] font-extrabold text-[#456075]"><th className="py-2 pr-2">Área</th><th className="px-2 py-2 text-center">Usuarios</th><th className="px-2 py-2 text-center">Activos</th><th className="py-2 pl-2">% actividad</th></tr></thead>
